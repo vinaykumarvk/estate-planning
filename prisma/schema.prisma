@@ -1,0 +1,1005 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  deploymentModel   String
+  dataRegion        String
+  defaultLocale     String
+  enabledCountries  String
+  status            String   @default("active")
+  securityPolicy    String   @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  displayName         String
+  preferredLocale     String   @default("en-GB")
+  mfaEnabled          Boolean  @default(false)
+  professionalLicense String?
+  status              String   @default("active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model TenantUser {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      String
+  scopes    String   @default("[]")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model Jurisdiction {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  parentCode     String?
+  legalSystem    String
+  defaultLocale  String
+  currency       String
+  timeZone       String
+  phaseStatus    String
+  dataRegion     String
+  sourceSummary  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model JurisdictionPack {
+  id                  String   @id @default(cuid())
+  jurisdictionCode    String
+  name                String
+  ownerRole           String
+  status              String
+  activeVersion       String?
+  enabledProductModes String
+  enabledDocTypes     String
+  languages           String
+  publicationBlockers String   @default("[]")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([jurisdictionCode])
+}
+
+model PackVersion {
+  id              String   @id @default(cuid())
+  packId          String
+  version         String
+  status          String
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  sourceRefs      String   @default("[]")
+  approvalRefs    String   @default("[]")
+  snapshotHash    String
+  rollbackPlan    String
+  testEvidence    String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([packId])
+}
+
+model PackChangeRequest {
+  id              String   @id @default(cuid())
+  packId          String
+  requestedBy     String
+  changeType      String
+  sourceBasis     String
+  status          String
+  reviewerRole    String?
+  approvalStatus  String   @default("pending")
+  effectiveFrom   DateTime?
+  rollbackPlan    String?
+  testEvidence    String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([packId])
+}
+
+model SourceNote {
+  id               String   @id @default(cuid())
+  packId           String
+  sourceCode       String
+  title            String
+  url              String?
+  citation         String
+  effectiveFrom    DateTime?
+  reviewedBy       String?
+  reviewStatus     String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([packId])
+  @@index([sourceCode])
+}
+
+model Rule {
+  id              String   @id @default(cuid())
+  packId          String
+  ruleCode        String
+  category        String
+  name            String
+  description     String
+  expression      String
+  severity        String
+  phase           String
+  sourceCode      String
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  status          String
+  testRefs        String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([packId, ruleCode])
+  @@index([category])
+}
+
+model Workflow {
+  id              String   @id @default(cuid())
+  packId          String
+  workflowCode    String
+  name            String
+  productMode     String
+  documentType    String?
+  status          String
+  version         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([packId, workflowCode])
+}
+
+model WorkflowNode {
+  id              String   @id @default(cuid())
+  workflowId      String
+  nodeCode        String
+  label           String
+  ownerRole       String
+  nodeType        String
+  required        Boolean  @default(true)
+  branchLogic     String   @default("{}")
+  deadlineFormula String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([workflowId])
+}
+
+model Matter {
+  id                      String   @id @default(cuid())
+  tenantId                String
+  matterNumber            String   @unique
+  title                   String
+  mode                    String
+  status                  String
+  primaryJurisdictionCode String
+  additionalJurisdictions String   @default("[]")
+  languageOfRecord        String
+  engagementStatus        String
+  confidentialityMode     String   @default("standard")
+  riskLevel               String   @default("medium")
+  createdByUserId         String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([primaryJurisdictionCode])
+}
+
+model Person {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  matterId              String?
+  legalName             String
+  preferredName         String?
+  dateOfBirth           DateTime?
+  email                 String?
+  phone                 String?
+  nationality           String?
+  residenceCountry      String?
+  domicileCountry       String?
+  habitualResidence     String?
+  taxResidency          String?
+  maritalStatus         String?
+  preferredLanguage     String   @default("en-GB")
+  identityDocumentRefs  String   @default("[]")
+  sensitivityClass      String   @default("confidential")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+}
+
+model Relationship {
+  id                String   @id @default(cuid())
+  tenantId          String
+  matterId          String
+  fromPersonId      String
+  toPersonId        String
+  relationshipType  String
+  legalStatus       String
+  startDate         DateTime?
+  endDate           DateTime?
+  biological        Boolean  @default(false)
+  adoptive          Boolean  @default(false)
+  stepRelationship  Boolean  @default(false)
+  dependent         Boolean  @default(false)
+  minor             Boolean  @default(false)
+  incapacitated     Boolean  @default(false)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model Consent {
+  id                String   @id @default(cuid())
+  tenantId          String
+  matterId          String
+  personId          String?
+  consentType       String
+  locale            String
+  textVersion       String
+  acknowledged      Boolean  @default(false)
+  acknowledgedAt    DateTime?
+  legalBasis        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model Asset {
+  id                     String   @id @default(cuid())
+  tenantId               String
+  matterId               String
+  ownerPersonId          String?
+  assetClass             String
+  description            String
+  jurisdictionCode       String?
+  situsCountry           String
+  currency               String
+  valuation              Float
+  valuationDate          DateTime
+  valuationSource        String
+  confidenceLevel        String
+  ownershipType          String
+  ownershipShare         Float    @default(100)
+  coOwnerInfo            String?
+  beneficiaryDesignation String?
+  todPod                 Boolean  @default(false)
+  dynamicFields          String   @default("{}")
+  taxonomyCode           String?
+  evidenceRefs           String   @default("[]")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([matterId])
+  @@index([assetClass])
+}
+
+model Liability {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String
+  liabilityType   String
+  description     String
+  creditor        String?
+  currency        String
+  amount          Float
+  dueDate         DateTime?
+  evidenceRefs    String   @default("[]")
+  phaseStatus     String   @default("deferred_phase_3")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model Scenario {
+  id             String   @id @default(cuid())
+  tenantId       String
+  matterId       String
+  name           String
+  status         String
+  comparisonBase Boolean  @default(false)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model Disposition {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  matterId             String
+  scenarioId           String
+  giftType             String
+  beneficiaryPersonId  String?
+  beneficiaryLabel     String
+  assetId              String?
+  amount               Float?
+  percentage           Float?
+  currency             String?
+  conditions           String?
+  survivorshipDays     Int?
+  perStirpes           Boolean  @default(false)
+  perCapita            Boolean  @default(false)
+  alternateDisposition String?
+  executorPersonId     String?
+  guardianPersonId     String?
+  fiduciaryRole        String?
+  giftDate             DateTime?
+  lifetimeGift         Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([matterId])
+  @@index([scenarioId])
+}
+
+model RuleEvaluation {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  matterId            String
+  scenarioId          String?
+  packId              String
+  packVersion         String
+  ruleCode            String
+  outcome             String
+  severity            String
+  sourceCode          String
+  factsHash           String
+  explanation         String
+  professionalReview  Boolean  @default(false)
+  evaluatedAt         DateTime @default(now())
+
+  @@index([matterId])
+  @@index([ruleCode])
+}
+
+model DocumentTemplate {
+  id                String   @id @default(cuid())
+  packId            String
+  templateCode      String
+  documentType      String
+  locale            String
+  version           String
+  status            String
+  title             String
+  body              String
+  executionPolicy   String
+  glossaryLintRules String @default("[]")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([packId, templateCode, locale, version])
+}
+
+model Clause {
+  id             String   @id @default(cuid())
+  templateId     String
+  clauseCode     String
+  title          String
+  body           String
+  condition      String?
+  sourceCode     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([templateId])
+}
+
+model Document {
+  id                String   @id @default(cuid())
+  tenantId          String
+  matterId          String
+  templateId        String?
+  documentType      String
+  jurisdictionCode  String
+  locale            String
+  status            String
+  version           String
+  title             String
+  content           String
+  hash              String
+  storageLocation   String?
+  sensitivityClass  String   @default("confidential")
+  reviewStatus      String
+  executionStatus   String
+  supersedesId      String?
+  revokedAt         DateTime?
+  finalizedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([matterId])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model Review {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  matterId            String
+  documentId          String?
+  reviewType          String
+  status              String
+  reviewerUserId      String?
+  mandatory           Boolean  @default(false)
+  triggerReason       String
+  decision            String?
+  rationale           String?
+  completedAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([matterId])
+  @@index([status])
+}
+
+model ReviewComment {
+  id             String   @id @default(cuid())
+  reviewId       String
+  authorUserId   String
+  commentType    String
+  body           String
+  resolved       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([reviewId])
+}
+
+model SignatureEvent {
+  id               String   @id @default(cuid())
+  tenantId         String
+  matterId         String
+  documentId       String
+  status           String
+  ceremonyType     String
+  witnessDetails   String   @default("[]")
+  notaryDetails    String?
+  signedCopyHash   String?
+  occurredAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([matterId])
+}
+
+model Task {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  workflowNodeId  String?
+  title           String
+  description     String?
+  ownerRole       String
+  assigneeUserId  String?
+  status          String
+  dueAt           DateTime?
+  sourceRuleCode  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([matterId])
+  @@index([status])
+}
+
+model AuditEvent {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  actorUserId     String?
+  actorRole       String
+  eventType       String
+  entityType      String
+  entityId        String?
+  ruleVersion     String?
+  metadata        String   @default("{}")
+  ipAddress       String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([eventType])
+}
+
+model Invitation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String
+  inviteeEmail    String
+  role            String
+  scopes          String   @default("[]")
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  acceptedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  tenantId       String
+  matterId       String
+  senderUserId   String
+  body           String
+  locale         String
+  sensitivity    String   @default("confidential")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model NotificationTemplate {
+  id             String   @id @default(cuid())
+  tenantId       String?
+  packId         String?
+  templateCode   String
+  locale         String
+  channel        String
+  subject        String
+  body           String
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([templateCode])
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  recipientUserId String?
+  channel         String
+  subject         String
+  body            String
+  status          String
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model ServicePackage {
+  id               String   @id @default(cuid())
+  tenantId          String
+  packageCode       String
+  name              String
+  jurisdictionCodes String
+  priceCurrency     String
+  priceAmount       Float
+  includedDocTypes  String
+  status            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, packageCode])
+}
+
+model ApiKey {
+  id              String   @id @default(cuid())
+  tenantId        String
+  label           String
+  keyHash         String
+  scopes          String
+  status          String
+  lastUsedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([keyHash])
+}
+
+model WebhookSubscription {
+  id              String   @id @default(cuid())
+  tenantId        String
+  url             String
+  events          String
+  secretHash      String
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model ExportJob {
+  id               String   @id @default(cuid())
+  tenantId         String
+  matterId         String?
+  exportType       String
+  status           String
+  storageLocation  String?
+  requestedBy      String
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model AiPolicy {
+  id                String   @id @default(cuid())
+  packId            String
+  policyCode        String
+  allowedModes      String
+  citationRequired  Boolean  @default(true)
+  escalationRules   String
+  prohibitedIntents String
+  confidenceFloor   Float
+  status            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AiInteraction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  userId          String
+  userRole        String
+  packId          String?
+  prompt          String
+  output          String
+  citedRuleCodes  String   @default("[]")
+  modelVersion    String
+  riskFlags       String   @default("[]")
+  escalated       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([matterId])
+}
+
+model AiEvaluationRun {
+  id                    String   @id @default(cuid())
+  packId                String
+  locale                String
+  modelVersion          String
+  promptSetVersion      String
+  groundingRate         Float
+  citationAccuracy      Float
+  escalationRate        Float
+  hallucinatedCitationRate Float
+  languageParityGap     Float
+  redTeamRefusalRate    Float
+  sensitiveLeakEvents   Int
+  sourceStaleRate       Float
+  releaseGateStatus     String
+  signedOffBy           String   @default("[]")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([packId])
+}
+
+model UplOpinion {
+  id               String   @id @default(cuid())
+  jurisdictionCode String
+  opinionDate      DateTime
+  refreshDueAt     DateTime
+  counselName      String
+  status           String
+  functionsCovered String
+  requiredControls String
+  storageLocation  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model InsuranceRecord {
+  id             String   @id @default(cuid())
+  tenantId       String?
+  coverageType   String
+  coverageAmount Float
+  currency       String
+  carrier        String
+  policyRef      String
+  expiresAt      DateTime
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PackVelocityRecord {
+  id               String   @id @default(cuid())
+  packId           String
+  packOrdinal      Int
+  conceptStartedAt DateTime
+  gaPublishedAt    DateTime?
+  elapsedDays      Int?
+  launchCost       Float?
+  targetElapsedPct Float
+  targetCostPct    Float
+  status           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ConflictOfLawsMemo {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  matterId              String
+  connectingFactors     String
+  regimesEvaluated      String
+  applicableLawSummary  String
+  requiredEvidence      String
+  proceduralSteps       String
+  riskAreas             String
+  disclaimer            String
+  reviewStatus          String
+  reviewerRationale     String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model DataSubjectRequest {
+  id             String   @id @default(cuid())
+  tenantId       String
+  personId       String?
+  requestType    String
+  legalBasis     String
+  status         String
+  dueAt          DateTime
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model RetentionPolicy {
+  id               String   @id @default(cuid())
+  tenantId          String?
+  jurisdictionCode  String?
+  recordType        String
+  retentionYears    Int
+  legalHoldOverride Boolean  @default(true)
+  status            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Incident {
+  id              String   @id @default(cuid())
+  tenantId        String?
+  incidentClass   String
+  title           String
+  description     String
+  status          String
+  affectedUsers   Int      @default(0)
+  breachNotified  Boolean  @default(false)
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model IntegrationProvider {
+  id               String   @id @default(cuid())
+  tenantId          String?
+  providerType      String
+  providerName      String
+  enabledPhases     String
+  status            String
+  credentialRef     String?
+  configuration     String   @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model LocalizationString {
+  id             String   @id @default(cuid())
+  packId         String?
+  tenantId       String?
+  contentKey     String
+  locale         String
+  sourceText     String
+  translatedText String
+  status         String
+  reviewer       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([contentKey, locale])
+}
+
+model LegalGlossaryTerm {
+  id              String   @id @default(cuid())
+  packId          String
+  termKey         String
+  locale          String
+  preferredTerm   String
+  prohibitedTerms String   @default("[]")
+  definition      String
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([packId, termKey, locale])
+}
+
+model TranslationTask {
+  id             String   @id @default(cuid())
+  packId         String
+  contentKey     String
+  locale         String
+  reason         String
+  status         String
+  assignee       String?
+  dueAt          DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ReleaseGate {
+  id             String   @id @default(cuid())
+  packId         String
+  gateCode       String
+  gateType       String
+  status         String
+  evidence       String
+  blocker        Boolean  @default(true)
+  lastCheckedAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([packId])
+}
+
+model RegulatoryMonitor {
+  id               String   @id @default(cuid())
+  jurisdictionCode String
+  authority        String
+  topic            String
+  cadence          String
+  lastCheckedAt    DateTime?
+  nextCheckAt      DateTime
+  status           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model FeatureGate {
+  id               String   @id @default(cuid())
+  featureCode      String   @unique
+  phase            String
+  enabled          Boolean  @default(false)
+  requiredControls String
+  reason           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model BeneficialOwnership {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  entityName      String
+  ownerPersonId   String?
+  ownershipPct    Float
+  controlBasis    String
+  phaseStatus     String   @default("deferred_phase_4")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model KycAmlRecord {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  personId        String?
+  providerName    String
+  checkType       String
+  status          String
+  riskRating      String
+  evidenceRefs    String   @default("[]")
+  phaseStatus     String   @default("tenant_supplied_phase_1")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PaymentRecord {
+  id              String   @id @default(cuid())
+  tenantId        String
+  matterId        String?
+  amount          Float
+  currency        String
+  status          String
+  invoiceRef      String?
+  phaseStatus     String   @default("deferred_phase_2")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ReportSnapshot {
+  id              String   @id @default(cuid())
+  tenantId        String?
+  reportCode      String
+  title           String
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  metrics         String
+  createdAt       DateTime @default(now())
+}
+
+model EncryptionKeyRecord {
+  id             String   @id @default(cuid())
+  keyAlias       String   @unique
+  keyType        String
+  purpose        String
+  status         String   @default("active")
+  rotationDueAt  DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AssetTaxonomy {
+  id                 String   @id @default(cuid())
+  jurisdictionCode   String
+  assetClass         String
+  fieldDefinitions   String   @default("[]")
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([jurisdictionCode, assetClass])
+}
+
+model FileAttachment {
+  id               String   @id @default(cuid())
+  tenantId         String
+  matterId         String?
+  filename         String
+  mimeType         String
+  sizeBytes        Int
+  hash             String
+  storageLocation  String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+}
