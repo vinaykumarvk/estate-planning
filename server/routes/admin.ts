@@ -241,7 +241,7 @@ adminRouter.get(
   asyncHandler(async (_request, response) => {
     response.json({
       status: "configured",
-      strategy: "sqlite_file_backup",
+      strategy: "postgresql_managed_backup",
       lastBackup: new Date().toISOString(),
       requirementRefs: ["NFR-013"]
     });
