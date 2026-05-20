@@ -2,6 +2,13 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import en from "./locales/en";
 
+export const UI_LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "fr", label: "Français" },
+  { code: "pt", label: "Português" },
+  { code: "es", label: "Español" },
+] as const;
+
 export const SECONDARY_LANGUAGES = [
   { code: "none", label: "None (English only)" },
   { code: "fr", label: "Français (French)" },

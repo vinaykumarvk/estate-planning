@@ -81,6 +81,7 @@ export async function addPerson(input: unknown) {
       habitualResidence: data.habitualResidence,
       taxResidency: data.taxResidency,
       maritalStatus: data.maritalStatus,
+      domicileOfOrigin: data.domicileOfOrigin,
       preferredLanguage: data.preferredLanguage
     }
   });
@@ -183,9 +184,13 @@ export async function addAsset(input: unknown) {
       todPod: data.todPod,
       dynamicFields: data.dynamicFields,
       taxonomyCode: data.taxonomyCode,
-      evidenceRefs: encode(data.evidenceRefs)
+      evidenceRefs: encode(data.evidenceRefs),
+      digitalAccessMethod: data.digitalAccessMethod,
+      volatilityFlag: data.volatilityFlag,
     }
   });
+
+  const isDigitalAsset = ["digital_asset", "cryptocurrency", "intellectual_property", "domain_name"].includes(data.assetClass);
 
   await audit({
     tenantId: asset.tenantId,
@@ -194,7 +199,11 @@ export async function addAsset(input: unknown) {
     eventType: "asset.created",
     entityType: "Asset",
     entityId: asset.id,
-    metadata: { requirementRefs: ["CR-003", "FR-016", "FR-017", "FR-018", "FR-020"] }
+    metadata: {
+      requirementRefs: isDigitalAsset
+        ? ["CR-003", "FR-016", "FR-017", "FR-018", "FR-020", "ADD-015", "ADD-028", "ADD-031"]
+        : ["CR-003", "FR-016", "FR-017", "FR-018", "FR-020"],
+    }
   });
 
   return asset;
@@ -262,6 +271,48 @@ export async function addDisposition(input: unknown) {
   });
 
   return disposition;
+}
+
+export async function updateMatter(matterId: string, data: { primaryJurisdictionCode?: string; languageOfRecord?: string }) {
+  const matter = await prisma.matter.update({
+    where: { id: matterId },
+    data: {
+      ...(data.primaryJurisdictionCode ? { primaryJurisdictionCode: data.primaryJurisdictionCode } : {}),
+      ...(data.languageOfRecord ? { languageOfRecord: data.languageOfRecord } : {}),
+    },
+  });
+
+  await audit({
+    tenantId: matter.tenantId,
+    matterId: matter.id,
+    actorRole: "professional",
+    eventType: "matter.updated",
+    entityType: "Matter",
+    entityId: matter.id,
+    metadata: { updatedFields: Object.keys(data) },
+  });
+
+  return matter;
+}
+
+export async function updatePerson(personId: string, data: Record<string, unknown>) {
+  const { tenantId, matterId, id, createdAt, updatedAt, ...updateFields } = data as any;
+  const person = await prisma.person.update({
+    where: { id: personId },
+    data: updateFields,
+  });
+
+  await audit({
+    tenantId: person.tenantId,
+    matterId: person.matterId ?? undefined,
+    actorRole: "professional",
+    eventType: "person.updated",
+    entityType: "Person",
+    entityId: person.id,
+    metadata: { updatedFields: Object.keys(updateFields) },
+  });
+
+  return person;
 }
 
 export async function getMatterWorkspace(matterId: string) {

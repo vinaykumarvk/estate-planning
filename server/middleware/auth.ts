@@ -9,7 +9,7 @@ function hashApiKey(value: string): string {
 const publicPaths = new Set(["/api/health", "/api/health/live", "/api/health/ready"]);
 
 export async function requireApiKey(request: Request, response: Response, next: NextFunction) {
-  if (publicPaths.has(request.path)) {
+  if (publicPaths.has(request.path) || !request.path.startsWith("/api/")) {
     next();
     return;
   }
@@ -27,6 +27,19 @@ export async function requireApiKey(request: Request, response: Response, next: 
   if (!record) {
     response.status(403).json({ error: "Invalid API key" });
     return;
+  }
+
+  const userId = request.header("x-user-id");
+  if (userId) {
+    const tenantUser = await prisma.tenantUser.findFirst({
+      where: { tenantId: record.tenantId, userId, status: "active" }
+    });
+    if (!tenantUser) {
+      response.status(403).json({ error: "User is not active for this tenant" });
+      return;
+    }
+    response.locals.userId = userId;
+    response.locals.userRole = tenantUser.role;
   }
 
   await prisma.apiKey.update({

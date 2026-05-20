@@ -1,8 +1,12 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { ZodError } from "zod";
 import { prisma } from "./db";
 import { requireApiKey } from "./middleware/auth";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { requestId } from "./middleware/requestId";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { apiRateLimit } from "./middleware/rateLimit";
@@ -23,10 +27,20 @@ import { notificationTemplatesRouter } from "./routes/notificationTemplates";
 import { assetTaxonomyRouter } from "./routes/assetTaxonomy";
 import { uploadsRouter } from "./routes/uploads";
 import { webhooksRouter } from "./routes/webhooks";
+import { willsRouter } from "./routes/wills";
+import { ihtRouter } from "./routes/iht";
+import { faraidRouter } from "./routes/faraid";
+import { goalsRouter } from "./routes/goals";
 import { openapiRouter } from "./routes/openapi";
+import { giftsRouter, balanceSheetRouter } from "./routes/gifts";
+import { estatePlanningRouter } from "./routes/estatePlanning";
 
 export function createApp() {
   const app = express();
+
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
 
   app.use(requestId);
 
@@ -94,7 +108,23 @@ export function createApp() {
   app.use("/api/asset-taxonomy", assetTaxonomyRouter);
   app.use("/api/uploads", uploadsRouter);
   app.use("/api/webhooks", webhooksRouter);
+  app.use("/api", willsRouter);
+  app.use("/api/iht", ihtRouter);
+  app.use("/api/faraid", faraidRouter);
+  app.use("/api", goalsRouter);
+  app.use("/api/matters/:matterId/gifts", giftsRouter);
+  app.use("/api/matters/:matterId/balance-sheet", balanceSheetRouter);
+  app.use("/api/matters/:matterId/estate-planning", estatePlanningRouter);
   app.use("/api", openapiRouter);
+
+  // --- Static file serving for production SPA ---
+  if (process.env.NODE_ENV === "production") {
+    const clientDir = process.env.CLIENT_DIR ?? path.resolve(__dirname, "../dist/client");
+    app.use(express.static(clientDir));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(clientDir, "index.html"));
+    });
+  }
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     if (error instanceof ZodError) {

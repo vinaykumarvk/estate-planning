@@ -7,7 +7,7 @@ export async function runLocalizationQa(packId: string) {
     prisma.legalGlossaryTerm.findMany({ where: { packId } })
   ]);
 
-  const requiredLocales = ["en-GB", "pt-PT"];
+  const requiredLocales = ["en", "fr", "pt", "es"];
   const issues: Array<{ type: string; contentKey: string; locale: string; detail: string }> = [];
   const contentKeys = [...new Set(strings.map((s) => s.contentKey))];
 

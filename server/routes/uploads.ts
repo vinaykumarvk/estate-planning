@@ -3,12 +3,15 @@ import { z } from "zod";
 import { asyncHandler } from "./asyncHandler";
 import { getFileMetadata, linkFileToEntity, storeFile } from "../services/fileUploadService";
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_BASE64_LENGTH = Math.ceil(MAX_FILE_SIZE_BYTES * 4 / 3); // ~13.7 MB base64
+
 const storeFileSchema = z.object({
   tenantId: z.string().min(1),
   matterId: z.string().optional(),
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1),
-  content: z.string().min(1),
+  content: z.string().min(1).max(MAX_BASE64_LENGTH, "File exceeds 10 MB limit"),
   actorUserId: z.string().optional()
 });
 

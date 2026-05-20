@@ -12,7 +12,7 @@ export async function missingMandatoryTranslations(packId: string) {
   const missing: Array<{ contentKey: string; locale: string }> = [];
 
   for (const contentKey of contentKeys) {
-    for (const locale of ["en-GB", "pt-PT"]) {
+    for (const locale of ["en", "fr", "pt", "es"]) {
       if (!approvedSet.has(`${contentKey}::${locale}`)) {
         missing.push({ contentKey, locale });
       }

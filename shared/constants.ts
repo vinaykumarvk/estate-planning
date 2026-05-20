@@ -1,5 +1,5 @@
-export const PHASE_1_JURISDICTIONS = ["EW", "PT"] as const;
-export const SUPPORTED_LOCALES = ["en-GB", "pt-PT"] as const;
+export const PHASE_1_JURISDICTIONS = ["NG", "GH", "ZA", "KE", "SN", "CM", "MZ", "AO", "EW", "PT"] as const;
+export const SUPPORTED_LOCALES = ["en", "fr", "pt", "es"] as const;
 export const PRODUCT_MODES = ["planning", "administration", "fiduciary", "configuration-studio"] as const;
 
 export const FRONT_OFFICE_REQUIREMENTS = [
@@ -43,7 +43,26 @@ export const FRONT_OFFICE_REQUIREMENTS = [
   "FR-044",
   "FR-045",
   "FR-047",
-  "FR-048"
+  "FR-048",
+  "ADD-001",
+  "ADD-002",
+  "ADD-003",
+  "ADD-004",
+  "ADD-005",
+  "ADD-006",
+  "ADD-007",
+  "ADD-009",
+  "ADD-010",
+  "ADD-014",
+  "ADD-015",
+  "ADD-022",
+  "ADD-023",
+  "ADD-028",
+  "ADD-031",
+  "ADD-054",
+  "ADD-055",
+  "ADD-056",
+  "ADD-064"
 ] as const;
 
 export const MIDDLE_OFFICE_REQUIREMENTS = [
@@ -154,12 +173,21 @@ export const ISSUE_CODES = [
   "PACK_VELOCITY_RISK",
   "UPL_OPINION_STALE",
   "MATRIMONIAL_REGIME_REVIEW",
-  "PT_STAMP_DUTY_RISK",
-  "EW_RNRB_ELIGIBLE",
+  "NG_ISLAMIC_LAW_CONFLICT",
+  "ZA_MATRIMONIAL_REGIME_REVIEW",
+  "CUSTOMARY_LAW_CONFLICT",
+  "FORCED_HEIRSHIP_CONFLICT",
   "TAX_RESIDENCE_IMPACT",
   "MISSING_ALTERNATE_DISPOSITION",
   "MATRIMONIAL_PROPERTY_REVIEW",
-  "STALE_PLAN"
+  "STALE_PLAN",
+  "IHT_LIQUIDITY_SHORTFALL",
+  "PROTECTION_GAP",
+  "GIFT_RESERVATION_OF_BENEFIT",
+  "REVOCATION_CLAUSE_CONFLICT",
+  "ASSET_UNASSIGNED_TO_WILL",
+  "DIGITAL_ASSET_ACCESS_UNPLANNED",
+  "DOMICILE_SNAPBACK_RISK"
 ] as const;
 
 export const AI_RELEASE_THRESHOLDS = {
@@ -233,5 +261,9 @@ export const TABLE_CATALOG = [
   "ReportSnapshot",
   "EncryptionKeyRecord",
   "AssetTaxonomy",
-  "FileAttachment"
+  "FileAttachment",
+  "LifetimeGift",
+  "IhtCalculation",
+  "WillCoordination",
+  "DomicileRecord"
 ] as const;

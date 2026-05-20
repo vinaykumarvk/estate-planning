@@ -2,7 +2,7 @@
 
 ## Configurable Multijurisdictional Estate Planning and Estate Administration Platform
 
-**Version 2.0 | 2026-05-11**
+**Version 2.1 | 2026-05-13**
 **Prepared for: product discovery, planning, AI-agent design, high-level architecture, and Phase-1 investment-grade decision making.**
 
 > **Important legal-product posture.** This BRD is a product and technology requirements document, not legal advice. The platform must be configured, reviewed, localized, and periodically updated by qualified professionals for each jurisdiction in which it is deployed. The application should help users organize information, understand workflows, prepare for professional review, and administer approved estate structures. It should not hold itself out as a substitute for a licensed attorney, notary, tax adviser, fiduciary, or regulated trust and company service provider.
@@ -27,6 +27,26 @@ V2 is a substantial rewrite of v1 (2026-05-11). It retains v1's configuration-fi
 | 10 | Risk register refreshed with **flywheel risk, specialist-vertical risk, and regulatory-drift risk** as fundamental risks not fully mitigable | V1 listed mostly mitigable design-time risks; v2 names the residual existential risks honestly | §27 |
 
 V2 is not a global platform specification. It is a Phase-1 launch plan with a multijurisdictional architecture beneath it. Sections that v1 wrote for global scope are now framed as Phase-2/3 commitments.
+
+### V2.1 Addendum Changes (2026-05-13)
+
+V2.1 incorporates 70 new and enhanced requirements sourced from three reference documents: (i) an IHT household calculation model, (ii) a Salesforce-based financial planning data model, and (iii) a comparative analysis of estate planning across African and UK jurisdictions. These requirements are tracked in a separate addendum (`docs/BRD_v2_Addendum_2026-05-13.md`) and integrated into the relevant BRD sections below.
+
+| # | Change | Source document | Requirements added | Sections affected |
+|---|---|---|---|---|
+| 11 | **IHT Calculation Engine** — detailed NRB, RNRB, 7-year transfer audit, second death projection, taper relief, charitable rate, BPR/APR | IHT Calculator PDF | ADD-001 to ADD-010 (10) | §13.6, §20 |
+| 12 | **Financial Planning & Cash Flow** — income/expenditure tracking, balance sheet, liquidity analysis, normal-expenditure-out-of-income evidence | Salesforce PDF | ADD-011 to ADD-017 (7) | §13.5, §13.6 |
+| 13 | **Client Goals & Protection Framework** — goals register, goal-to-plan mapping, insurance register, protection gap analysis | Salesforce PDF | ADD-018 to ADD-021 (4) | New §13.6A |
+| 14 | **Gifting & Transfer Tracking** — lifetime gift register, 7-year timeline, Deed of Variation, GROB, quick succession relief | Salesforce + ECO Bank PDFs | ADD-022 to ADD-027 (6) | §13.5, §13.6 |
+| 15 | **Digital Assets** — crypto, mobile money, digital access planning, volatile-asset valuation | ECO Bank PDF | ADD-028 to ADD-031 (4) | §13.5 |
+| 16 | **Power of Attorney & LPA** — LPA document types, attorney appointment, OPG registration, equivalent instruments per jurisdiction | ECO Bank PDF | ADD-032 to ADD-035 (4) | §13.7 |
+| 17 | **Trust Type Taxonomy** — trust types, trust in planning scenarios, life assurance in trust, SA trust structures | ECO Bank PDF | ADD-036 to ADD-039 (4) | §13.6, §13.9 |
+| 18 | **Pension & Life Assurance Nominations** — pension death benefits, life assurance tracking, outside-estate assets summary | ECO Bank PDF | ADD-040 to ADD-042 (3) | §13.5, §13.6 |
+| 19 | **African Jurisdiction Packs** — Nigeria, Ghana, Kenya, South Africa, Egypt, Morocco | ECO Bank PDF | ADD-043 to ADD-048 (6) | §25 |
+| 20 | **Customary & Islamic Law Modules** — multi-legal-system packs, Faraid engine, customary rules, legal-system determination, polygamous unions | ECO Bank PDF | ADD-049 to ADD-053 (5) | §12, §13.3, §13.4, §13.6 |
+| 21 | **Multi-Jurisdiction Will Coordination** — will register, revocation clause management, cross-jurisdiction asset assignment, foreign grant recognition | ECO Bank PDF | ADD-054 to ADD-058 (5) | §13.7, §15 |
+| 22 | **Double Taxation Agreements** — DTA register, relief calculation, no-DTA warnings | ECO Bank PDF | ADD-059 to ADD-061 (3) | §15, §13.6 |
+| 23 | **Family Graph & Diaspora Enhancements** — polygamous unions, customary claimants, domicile-of-origin tracking, diaspora workflow, land restrictions, professional network | ECO Bank PDF | ADD-062 to ADD-068 (7) | §13.4, §15, §22 |
 
 ---
 
@@ -507,6 +527,19 @@ Functional requirements are grouped into modules. Each module supports jurisdict
 | FR-018 | Ownership shares, title type, co-owner info, beneficiary designations, TOD/POD | 1 (limited) |
 | FR-019 | Liabilities, guarantees, mortgages, tax liabilities, funeral/admin expenses, contingent claims | Phase 3 (admin mode) |
 | FR-020 | Document uploads and evidence linking per asset/liability | 1 |
+| ADD-014 | **Balance sheet view** — real-time consolidated balance sheet per individual and household (total assets, liabilities, net worth with market valuations) *(v2.1)* | 1 |
+| ADD-015 | **Market valuation updates** — periodic revaluation with date, source, method, confidence; flag stale valuations *(v2.1, enhances FR-017)* | 1 |
+| ADD-022 | **Lifetime gift register** — all lifetime gifts with date, recipient, value, asset type, relationship, exemption claimed, PET/CLT classification *(v2.1)* | 1 |
+| ADD-028 | **Digital asset class** — crypto/tokens, domain names, digital media, online business accounts, IP, social media with commercial value as first-class asset category *(v2.1)* | 1 |
+| ADD-031 | **Digital asset valuation** — volatile-asset valuation with exchange/source, currency conversion, confidence caveat *(v2.1)* | 1 |
+| ADD-011 | **Income tracking** — regular income sources per individual with amounts, frequency, tax treatment, projected changes *(v2.1)* | 2 |
+| ADD-012 | **Expenditure tracking** — regular expenditure per individual/household to establish surplus/deficit *(v2.1)* | 2 |
+| ADD-020 | **Protection/insurance register** — life assurance, critical illness, income protection policies per individual with trust status and nomination details *(v2.1)* | 2 |
+| ADD-024 | **Deed of Variation tracking** — Deeds of Variation within 2 years of death, IHT/CGT implications, linked to original will provision *(v2.1)* | 2 |
+| ADD-029 | **Digital asset access planning** — credentials storage method, digital executor/trustee, platform-specific legacy settings *(v2.1)* | 2 |
+| ADD-040 | **Pension death benefit nominations** — pension schemes with provider, type, value, nominated beneficiaries, binding/non-binding status; flagged as outside-estate for IHT *(v2.1)* | 2 |
+| ADD-041 | **Life assurance nomination tracking** — policies with provider, sum assured, beneficiary nominations, trust status, premium frequency *(v2.1)* | 2 |
+| ADD-030 | **Mobile money accounts** — M-Pesa, MTN Mobile Money, Airtel Money as asset type for African jurisdiction packs *(v2.1)* | Phase 3+ |
 
 ### 13.6 Planning scenarios and distribution design
 
@@ -517,6 +550,34 @@ Functional requirements are grouped into modules. Each module supports jurisdict
 | FR-023 | Specific gifts, cash gifts, percentage gifts, residue, class gifts, charitable gifts, business succession plans, conditional gifts | 1 (basic gifts only) |
 | FR-024 | Fiduciary appointment workflows (executor, trustee, administrator, guardian, protector, agent, substitute) | 1 (executor/guardian only) |
 | FR-025 | Plan-impact analysis on residence/marital/asset/beneficiary changes | 1 |
+| ADD-001 | **IHT per-individual liability model** — calculate IHT separately for each person in a household showing net estate, thresholds, and tax due per person *(v2.1)* | 1 |
+| ADD-002 | **Nil Rate Band (NRB) application** — apply current NRB (£325K) with effective-dated values for historical/future calculations *(v2.1)* | 1 |
+| ADD-003 | **Residence Nil Rate Band (RNRB) offset** — apply RNRB (£175K) for qualifying residential property to direct descendants; model tapering for estates over £2M *(v2.1)* | 1 |
+| ADD-004 | **Transferable NRB and RNRB** — on second death, calculate transferred unused NRB/RNRB from predeceased spouse/civil partner *(v2.1)* | 1 |
+| ADD-005 | **7-year chargeable transfer audit** — track CLTs and PETs within 7 years; apply taper relief at 3-7 year bands; recalculate NRB availability *(v2.1)* | 1 |
+| ADD-006 | **Second death projection** — model combined estate tax across both deaths in a couple; project total cumulative IHT *(v2.1)* | 1 |
+| ADD-007 | **IHT rate calculation** — 40% standard rate; 36% reduced rate where ≥10% of baseline left to qualifying charities *(v2.1)* | 1 |
+| ADD-009 | **IHT exemptions engine** — spouse/civil partner (unlimited), annual (£3K + carry-forward), small gifts (£250/recipient), normal expenditure out of income, charity *(v2.1, enhances FR-022)* | 1 |
+| ADD-010 | **IHT scenario comparison dashboard** — side-by-side comparison of planning scenarios showing tax impact of different strategies *(v2.1, enhances FR-021)* | 1 |
+| ADD-023 | **7-year gift timeline** — visual timeline of gifts within 7 years showing PET/CLT status, cumulative total vs NRB, taper bands, projected fall-off dates *(v2.1)* | 1 |
+| ADD-008 | **BPR and APR reliefs** — model Business Property Relief (50%/100%) and Agricultural Property Relief (50%/100%) on qualifying assets *(v2.1)* | 2 |
+| ADD-013 | **Cash flow analysis** — net income vs expenditure to assess liquidity, savings capacity, and ability to fund lifetime gifts or insurance *(v2.1)* | 2 |
+| ADD-016 | **Liquidity analysis** — classify assets by liquidity to assess estate's ability to meet IHT within HMRC 6-month deadline *(v2.1)* | 2 |
+| ADD-017 | **Normal expenditure out of income evidence** — track income/expenditure/gifting patterns to support IHT exemption claim *(v2.1)* | 2 |
+| ADD-021 | **Protection gap analysis** — compare IHT liability estimate against liquid assets and life assurance cover; flag insufficient cover *(v2.1)* | 2 |
+| ADD-025 | **Gift with reservation of benefit (GROB)** — flag gifts where donor retains benefit; apply POAT rules; alert GROB negates PET treatment *(v2.1)* | 2 |
+| ADD-027 | **Quick succession relief** — sliding-scale relief where beneficiary dies within 5 years of inheriting from an estate that paid IHT *(v2.1)* | 2 |
+| ADD-037 | **Trust in planning scenarios** — model IHT impact of settling assets into trust (CLT entry charge 20%, 10-year periodic, exit charges) *(v2.1)* | 2 |
+| ADD-038 | **Life assurance in trust** — model writing policies in trust to keep proceeds outside estate; flag unprotected policies as planning opportunity *(v2.1)* | 2 |
+| ADD-042 | **Outside-estate assets summary** — consolidated view of assets passing outside will/intestacy (pension nominations, life assurance in trust, joint tenancy, TOD/POD) *(v2.1)* | 2 |
+| ADD-060 | **DTA relief calculation** — apply double-taxation treaty relief in cross-border scenarios; calculate unilateral relief where no treaty exists *(v2.1)* | 2 |
+
+### 13.6A Client goals and protection framework *(new in v2.1)*
+
+| ID | Requirement | Phase |
+|---|---|---|
+| ADD-018 | **Client goals register** — capture estate-planning goals (protect family home, provide for minor children, minimise IHT, ensure business continuity, charitable legacy) with priority ranking | 2 |
+| ADD-019 | **Goal-to-plan mapping** — link planning scenarios to client goals; highlight unaddressed goals as planning gaps | 2 |
 
 ### 13.7 Document preparation, review, and execution
 
@@ -528,6 +589,13 @@ Functional requirements are grouped into modules. Each module supports jurisdict
 | FR-029 | Document execution instructions by jurisdiction and document type | 1 |
 | FR-030 | Signing ceremony status, witness/notary details, signed copy storage, supersession/revocation | 1 |
 | FR-031 | E-signature routing only when jurisdiction pack and document type permit | 1 (not applicable to wills in E&W or PT at Phase 1) |
+| ADD-054 | **Multi-jurisdiction will register** — track all wills held by a client across jurisdictions with jurisdiction, type, date, solicitor/notary, assets covered, status *(v2.1)* | 1 |
+| ADD-055 | **Revocation clause management** — flag/generate limited revocation clauses to avoid revoking wills in other jurisdictions; alert on overly broad revocation *(v2.1)* | 1 |
+| ADD-056 | **Cross-jurisdiction asset assignment** — require explicit assignment of each asset to the jurisdiction-specific will that governs it based on situs rules; flag unassigned/multi-claimed assets *(v2.1)* | 1 |
+| ADD-032 | **LPA document types** — Lasting Power of Attorney for Property & Financial Affairs and for Health & Welfare with jurisdiction-specific forms, execution, and registration *(v2.1)* | 2 |
+| ADD-033 | **LPA attorney appointment** — attorney details, replacements, joint/several, preferences/instructions, certificate provider, people to notify *(v2.1)* | 2 |
+| ADD-034 | **OPG registration tracking** — LPA registration status with Office of the Public Guardian: submitted/pending/registered/rejected with reference number *(v2.1)* | 2 |
+| ADD-035 | **Equivalent incapacity instruments** — configurable per pack: Procuração (PT), EPA (IE), Mandat de protection future (QC/FR) with jurisdiction-specific formalities *(v2.1)* | 2+ |
 
 ### 13.8 Estate administration case management (Phase 3)
 
@@ -536,6 +604,11 @@ FR-032 through FR-037 from v1 retained; Phase 3.
 ### 13.9 Trust and fiduciary management (Phase 4)
 
 FR-038 through FR-041 from v1 retained; Phase 4.
+
+| ID | Requirement | Phase |
+|---|---|---|
+| ADD-036 | **Trust type taxonomy** — configurable trust types per pack: Discretionary, Bare/Absolute, Interest-in-Possession, Charitable/CIO, Accumulation & Maintenance, Pilot, Will Trust, Inter Vivos, Protective *(v2.1)* | 2 (taxonomy); 4 (management) |
+| ADD-039 | **South African trust structures** — inter vivos trusts (loan account method), testamentary trusts, Section 4q spousal rollover for SA pack *(v2.1)* | Phase 3+ (SA pack) |
 
 ### 13.10 Collaboration, communications, notifications
 
@@ -677,6 +750,11 @@ Additional bilateral cross-border pairs are added as new jurisdictions ship in P
 | CL-006 | Record reviewer rationale for divergence from preliminary determinations | 1 |
 | CL-007 | Apply EU 2016/1103 matrimonial-property logic for participating states | 2 |
 | CL-008 | Apply national private-international-law rules for non-EU jurisdictions | Per pack |
+| ADD-058 | **Will coordination summary** — consolidated cross-jurisdiction estate plan showing all wills, asset coverage, beneficiary distributions per jurisdiction, potential conflicts, and professional review requirements *(v2.1, enhances CL-004)* | 2 |
+| ADD-059 | **DTA register** — configurable register of bilateral estate/inheritance tax treaties with signatory countries, covered taxes, relief method, scope limitations, effective date *(v2.1)* | 2 |
+| ADD-060 | **DTA relief calculation** — apply treaty relief in cross-border scenarios; calculate unilateral relief where no treaty; flag double-taxation exposure *(v2.1)* | 2 |
+| ADD-061 | **No-DTA warning** — explicit warning in cross-border cases where no relevant DTA exists; highlight double-taxation risk and recommend professional tax advice *(v2.1)* | 2 |
+| ADD-064 | **Domicile of origin tracking** — track domicile of origin separately from domicile of choice/dependency; flag "domicile snap-back" risk for diaspora clients *(v2.1, enhances CL-001)* | 1 |
 
 ---
 
@@ -848,9 +926,9 @@ Integrations are modular and optional. A country pack or tenant can enable a pro
 | Property registry / title search | Verify ownership, encumbrances, identifiers | 2 |
 | Financial account aggregation | Import bank, brokerage, retirement, insurance data | 2-3 |
 | Valuation services | Real estate estimates, securities prices, business valuation, collectibles appraisals | 2 |
-| Tax engines | Estate/inheritance/gift calculations, forms, deadlines, reliefs | 2 (UK IHT engine selection); per-pack |
+| Tax engines | Estate/inheritance/gift calculations, forms, deadlines, reliefs; **built-in IHT calculation engine at Phase 1 (ADD-001–010); external tax engine integration at Phase 2** | **1 (built-in IHT); 2 (external engine)** |
 | Document management / storage | Store signed documents, vault, evidence, correspondence | 1 |
-| Practice management / CRM | **Phase-1 API partnership channel** (Clio, MyCase, NetDocuments, Smokeball, Actionstep candidates) | **1** |
+| Practice management / CRM | **Phase-1 API partnership channel** (Clio, MyCase, NetDocuments, Smokeball, Actionstep, **Salesforce Financial Services Cloud** candidates) | **1** |
 | Accounting / trust accounting | Estate accounts, fiduciary accounts, disbursements, statements | 4 |
 | Payments | Professional fees, filing fees, service charges | 2 |
 
@@ -1031,6 +1109,21 @@ Post-death case opening, authority validation, inventory, debts/taxes, notices, 
 
 Exit criteria: administration mode in production; one US state pack live with paying tenants; ARR £12-20M.
 
+### 25.4A Phase 3+ — African jurisdiction expansion *(new in v2.1)*
+
+Begin African jurisdiction pack development, prioritised by diaspora demand and professional-network availability. South Africa first (strongest legal infrastructure, existing DTA with UK), followed by Nigeria and Kenya/Ghana based on tenant demand.
+
+| Pack | Target phase | Key complexity drivers |
+|---|---|---|
+| South Africa | Phase 3+ | Estate duty (20-25%), matrimonial property regimes, inter vivos trusts, UK-SA DTA, Section 4q rollover |
+| Nigeria | Phase 4+ | Multi-legal-system (statutory + customary + Islamic), state-level variation, NTA 2025, land tenure |
+| Kenya | Phase 4+ | Law of Succession Act, Muslim personal law, land restrictions for non-citizens |
+| Ghana | Phase 4+ | PNDCL 111 intestacy, customary property, Wills Act 1971 |
+| Egypt | Phase 5+ | Faraid (Islamic succession), civil code for non-Muslims, notarial deed requirements |
+| Morocco | Phase 5+ | Mudawwana 2004, Dahir civil code, France-Morocco DTA |
+
+Pre-requisites: Multi-legal-system pack architecture (ADD-049), Islamic succession law module (ADD-050 — required for Nigeria, Kenya, Egypt, Morocco), customary law framework (ADD-051), polygamous union support in family graph (ADD-053).
+
 ### 25.5 Phase 4 — Fiduciary/trust operations and B2B2C expansion (months 48-72)
 
 Trust/foundation/managed-estate records; beneficiary register; compliance calendar; annual reviews; reporting. Begin B2B2C deployment with banks and wealth managers in launched jurisdictions.
@@ -1043,9 +1136,17 @@ Cross-border conflict prompts beyond Phase-1 Conflict-of-Laws Module scope; mult
 
 Exit criteria: AI outputs pass source-grounding, safety, multilingual, escalation tests in production at scale; first D2C launch in a cleared jurisdiction.
 
-### 25.7 Phase-1 MVP scope reductions (explicit)
+### 25.7 Phase-1 MVP scope — inclusions and deferrals
 
-The following v1 MVP items are explicitly deferred:
+**V2.1 Phase-1 additions** (from addendum):
+- IHT calculation engine with NRB, RNRB, transferable bands, 7-year transfer audit, second death projection, exemptions (ADD-001 to ADD-010)
+- Lifetime gift register and 7-year timeline (ADD-022, ADD-023)
+- Digital asset class in taxonomy (ADD-028, ADD-031)
+- Multi-jurisdiction will register, revocation clause management, cross-jurisdiction asset assignment (ADD-054 to ADD-056)
+- Balance sheet view (ADD-014)
+- Domicile of origin tracking (ADD-064)
+
+**Explicitly deferred from Phase-1 MVP:**
 - Estate administration mode → Phase 3
 - Trust/fiduciary management mode → Phase 4
 - Professional portal mode (multi-matter dashboards) → Phase 2.5
@@ -1056,6 +1157,16 @@ The following v1 MVP items are explicitly deferred:
 - More than 2 jurisdictions → Phase 2
 - More than 1 document type → Phase 2
 - More than 2 languages → Phase 2
+- Cash flow / income-expenditure tracking → Phase 2
+- LPA / Power of Attorney → Phase 2
+- Client goals register → Phase 2
+- Trust type taxonomy → Phase 2 (taxonomy only)
+- BPR/APR reliefs → Phase 2
+- Pension/life assurance nomination tracking → Phase 2
+- DTA register and relief calculations → Phase 2
+- African jurisdiction packs → Phase 3+ (South Africa first)
+- Islamic succession law (Faraid) module → Phase 3+
+- Customary law module → Phase 4+
 
 ---
 
@@ -1239,11 +1350,11 @@ Run counsel review, localization review, QA, UAT, security/privacy assessment, c
 
 ### Appendix D — Canonical data entities
 
-(Unchanged from v1.) Party, Relationship, Matter, Asset, Liability, Disposition, Document, Rule evaluation, Task, Workflow instance, Tax workpaper, Communication, Consent, AI interaction, Jurisdiction pack. **Added in v2: Conflict-of-Laws Memo, AI Evaluation Run, UPL Opinion, Pack Velocity Record.**
+(Unchanged from v1.) Party, Relationship, Matter, Asset, Liability, Disposition, Document, Rule evaluation, Task, Workflow instance, Tax workpaper, Communication, Consent, AI interaction, Jurisdiction pack. **Added in v2: Conflict-of-Laws Memo, AI Evaluation Run, UPL Opinion, Pack Velocity Record.** **Added in v2.1: Lifetime Gift, IHT Calculation, Income Source, Expenditure Item, Client Goal, Insurance Policy, Pension Scheme, Digital Asset, LPA/Incapacity Instrument, Trust Structure, DTA Treaty, Domicile Record, Will Coordination Record, Deed of Variation.**
 
 ### Appendix E — Sample issue and warning taxonomy
 
-(Unchanged from v1.) JURISDICTION_UNRESOLVED, CROSS_BORDER_ASSETS, RESERVED_SHARE_CONFLICT, MINOR_BENEFICIARY, FIDUCIARY_INELIGIBLE, TAX_THRESHOLD_TRIGGER, MISSING_ASSET_EVIDENCE, OUTDATED_DOCUMENT, BENEFICIARY_DESIGNATION_CONFLICT, EXECUTION_FORMALITY_BLOCKER, AML_KYC_HOLD, PRIVACY_CONSENT_MISSING. **Added in v2: AI_EVALUATION_REGRESSION (release-gate failure), PACK_VELOCITY_RISK (pack falling behind velocity target), UPL_OPINION_STALE (UPL refresh due).**
+(Unchanged from v1.) JURISDICTION_UNRESOLVED, CROSS_BORDER_ASSETS, RESERVED_SHARE_CONFLICT, MINOR_BENEFICIARY, FIDUCIARY_INELIGIBLE, TAX_THRESHOLD_TRIGGER, MISSING_ASSET_EVIDENCE, OUTDATED_DOCUMENT, BENEFICIARY_DESIGNATION_CONFLICT, EXECUTION_FORMALITY_BLOCKER, AML_KYC_HOLD, PRIVACY_CONSENT_MISSING. **Added in v2: AI_EVALUATION_REGRESSION (release-gate failure), PACK_VELOCITY_RISK (pack falling behind velocity target), UPL_OPINION_STALE (UPL refresh due).** **Added in v2.1: IHT_LIQUIDITY_SHORTFALL (estate cannot meet tax deadline from liquid assets), PROTECTION_GAP (life cover insufficient for projected IHT), GIFT_RESERVATION_OF_BENEFIT (GROB detected on PET), REVOCATION_CLAUSE_CONFLICT (will may revoke wills in other jurisdictions), ASSET_UNASSIGNED_TO_WILL (asset not covered by any jurisdiction-specific will), DIGITAL_ASSET_ACCESS_UNPLANNED (digital assets without access planning), PENSION_NOMINATION_STALE (pension nomination not reviewed within threshold), NO_DTA_DOUBLE_TAX_RISK (no treaty between involved jurisdictions), DOMICILE_SNAPBACK_RISK (diaspora client may revert to domicile of origin), MULTI_LEGAL_SYSTEM_UNRESOLVED (applicable legal system not determined).**
 
 ### Appendix F — Requirements for AI agent planning and design
 

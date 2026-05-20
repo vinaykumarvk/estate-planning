@@ -1,21 +1,12 @@
 import { prisma } from "../db";
-import type { ConflictMemoResult, EU650Result, FormalValidityRoute, HagueValidityResult, MemberStateStatus } from "../../shared/types";
+import type { ConflictMemoResult, FormalValidityRoute, HagueValidityResult } from "../../shared/types";
 import { decode, encode } from "./json";
 import { audit } from "./auditService";
 
-const EU650_MEMBER_STATE_MAP: Record<string, MemberStateStatus> = {
-  PT: "participating",
-  ES: "participating",
-  FR: "participating",
-  DE: "participating",
-  IT: "participating",
-  NL: "participating",
-  BE: "participating",
-  AT: "participating",
-  GB: "non_participating",
-  IE: "non_participating",
-  DK: "denmark_exception"
-};
+const COMMON_LAW_JURISDICTIONS = ["NG", "GH", "ZA", "KE"];
+const CIVIL_LAW_JURISDICTIONS = ["SN", "CM", "MZ", "AO"];
+// OHADA member states (Organisation for the Harmonisation of Business Law in Africa)
+const OHADA_MEMBERS = ["SN", "CM"];
 
 export async function evaluateHague1961FormalValidity(matterId: string): Promise<HagueValidityResult> {
   const matter = await prisma.matter.findUniqueOrThrow({ where: { id: matterId } });
@@ -26,7 +17,7 @@ export async function evaluateHague1961FormalValidity(matterId: string): Promise
 
   const testator = people[0];
   const routes: FormalValidityRoute[] = [];
-  const executionCountry = matter.primaryJurisdictionCode === "EW" ? "GB" : matter.primaryJurisdictionCode;
+  const executionCountry = matter.primaryJurisdictionCode;
 
   // (a) Place of execution
   routes.push({
@@ -102,53 +93,6 @@ export async function evaluateHague1961FormalValidity(matterId: string): Promise
   return { matterId, formallyValid, routes };
 }
 
-export async function evaluateEU650(matterId: string): Promise<EU650Result> {
-  const matter = await prisma.matter.findUniqueOrThrow({ where: { id: matterId } });
-  const [people, assets] = await Promise.all([
-    prisma.person.findMany({ where: { matterId } }),
-    prisma.asset.findMany({ where: { matterId } })
-  ]);
-
-  const testator = people[0];
-  const habitualResidence = testator?.habitualResidence ?? matter.primaryJurisdictionCode;
-  const memberStatus = EU650_MEMBER_STATE_MAP[habitualResidence] ?? "non_participating";
-
-  // Article 21: default applicable law = habitual residence of deceased
-  const defaultApplicableLaw = habitualResidence === "EW" ? "GB" : habitualResidence;
-
-  // Article 22: professio juris — check if nationality differs (election assumed if nationality set)
-  const professioJurisElected = Boolean(testator?.nationality && testator.nationality !== habitualResidence);
-
-  // Scope exclusion: immovable property in non-participating states
-  const excludedAssets = assets
-    .filter((a) => a.assetClass === "real_estate")
-    .filter((a) => {
-      const status = EU650_MEMBER_STATE_MAP[a.situsCountry] ?? "non_participating";
-      return status === "non_participating";
-    })
-    .map((a) => `${a.description} (situs: ${a.situsCountry})`);
-
-  const additionalJurisdictions = decode<string[]>(matter.additionalJurisdictions, []);
-  const allCountries = [habitualResidence, ...additionalJurisdictions, ...assets.map((a) => a.situsCountry)];
-  const uniqueCountries = [...new Set(allCountries.filter(Boolean))];
-  const memberStateStatus: Record<string, MemberStateStatus> = {};
-  for (const country of uniqueCountries) {
-    memberStateStatus[country] = EU650_MEMBER_STATE_MAP[country] ?? "non_participating";
-  }
-
-  await audit({
-    tenantId: matter.tenantId,
-    matterId,
-    actorRole: "system",
-    eventType: "eu650.evaluated",
-    entityType: "Matter",
-    entityId: matterId,
-    metadata: { defaultApplicableLaw, professioJurisElected, excludedAssets, requirementRefs: ["CL-002"] }
-  });
-
-  return { matterId, defaultApplicableLaw, professioJurisElected, excludedAssets, memberStateStatus };
-}
-
 export async function generateConflictMemo(matterId: string): Promise<ConflictMemoResult> {
   const matter = await prisma.matter.findUniqueOrThrow({ where: { id: matterId } });
   const [people, assets] = await Promise.all([
@@ -160,29 +104,43 @@ export async function generateConflictMemo(matterId: string): Promise<ConflictMe
   const assetCountries = [...new Set(assets.map((asset) => asset.situsCountry).filter(Boolean))];
   const habitualResidences = [...new Set(people.map((person) => person.habitualResidence).filter(Boolean))];
   const nationalities = [...new Set(people.map((person) => person.nationality).filter(Boolean))];
-  const regimesEvaluated = ["EU_650_2012", "HAGUE_1961_WILLS"];
+  const regimesEvaluated = ["HAGUE_1961_WILLS", "AFRICAN_CONFLICT_RULES"];
   const riskAreas: string[] = [];
   const proceduralSteps: string[] = [];
   const requiredEvidence = ["habitual residence proof", "domicile statement", "asset situs evidence"];
 
-  if (additionalJurisdictions.includes("PT") || assetCountries.includes("PT") || habitualResidences.includes("PT")) {
-    proceduralSteps.push("Evaluate EU 650/2012 participating-state succession logic for Portuguese connecting factors.");
-    proceduralSteps.push("Confirm Hague 1961 formal validity route for E&W will recognition in Portugal.");
+  // Check for common law vs civil law jurisdiction conflicts
+  const allJurisdictions = [matter.primaryJurisdictionCode, ...additionalJurisdictions];
+  const hasCommonLaw = allJurisdictions.some((j) => COMMON_LAW_JURISDICTIONS.includes(j));
+  const hasCivilLaw = allJurisdictions.some((j) => CIVIL_LAW_JURISDICTIONS.includes(j));
+
+  if (hasCommonLaw && hasCivilLaw) {
+    riskAreas.push("Mixed legal systems: matter involves both common law and civil law jurisdictions — conflict rules differ fundamentally.");
+    proceduralSteps.push("Evaluate applicable succession law for each jurisdiction separately: common law (domicile-based) vs civil law (nationality/habitual residence-based).");
   }
 
-  if (matter.primaryJurisdictionCode === "EW" || assetCountries.includes("GB")) {
-    proceduralSteps.push("Record that UK is outside EU 650/2012 and requires common-law conflict review for E&W-side effects.");
+  // OHADA references for francophone countries
+  if (allJurisdictions.some((j) => OHADA_MEMBERS.includes(j))) {
+    proceduralSteps.push("Review OHADA Uniform Acts for business asset classification and cross-border commercial property succession.");
+  }
+
+  // Customary law recognition
+  if (allJurisdictions.some((j) => ["NG", "GH", "KE"].includes(j))) {
+    riskAreas.push("Customary law may apply alongside statutory succession law — verify testator's personal law and community customs.");
+    proceduralSteps.push("Determine whether customary law succession rules apply based on testator's ethnic/community affiliation.");
+  }
+
+  // Cross-border asset situs rules
+  if (assetCountries.length > 1) {
+    proceduralSteps.push("Apply lex situs rule: immovable property governed by law of location; movable property governed by testator's domicile/habitual residence.");
+    riskAreas.push("Assets in multiple African countries may be subject to different succession regimes.");
   }
 
   if (people.some((person) => person.maritalStatus === "married")) {
-    riskAreas.push("Matrimonial property is outside EU 650/2012 succession scope and requires national-law review.");
+    riskAreas.push("Matrimonial property regime classification differs across African jurisdictions and requires national-law review.");
   }
 
-  if (assetCountries.length > 1 || habitualResidences.length > 1 || nationalities.length > 1) {
-    riskAreas.push("Multiple connecting factors create cross-border review requirement.");
-  }
-
-  // Evaluate Hague 1961 and EU 650
+  // Evaluate Hague 1961
   const hagueResult = await evaluateHague1961FormalValidity(matterId);
   if (hagueResult.formallyValid) {
     proceduralSteps.push(`Hague 1961 formal validity confirmed via: ${hagueResult.routes.filter((r) => r.satisfied).map((r) => r.basis).join(", ")}.`);
@@ -190,23 +148,14 @@ export async function generateConflictMemo(matterId: string): Promise<ConflictMe
     riskAreas.push("Hague 1961 formal validity could not be confirmed on any basis — all routes unsatisfied.");
   }
 
-  const eu650Result = await evaluateEU650(matterId);
-  proceduralSteps.push(`EU 650/2012 default applicable law: ${eu650Result.defaultApplicableLaw}.`);
-  if (eu650Result.professioJurisElected) {
-    proceduralSteps.push("Professio juris (Article 22) election detected — testator nationality law may apply.");
-  }
-  if (eu650Result.excludedAssets.length > 0) {
-    riskAreas.push(`Immovable property in non-participating states excluded from EU 650 scope: ${eu650Result.excludedAssets.join("; ")}.`);
-  }
-
   if (riskAreas.length === 0) {
     riskAreas.push("No cross-border blocker found from captured facts, but professional review remains available.");
   }
 
-  const applicableLawSummary =
-    matter.primaryJurisdictionCode === "PT"
-      ? "Preliminary view: Portugal pack applies to the planning workflow; EU 650/2012 review required for cross-border succession facts."
-      : "Preliminary view: England & Wales pack applies to the planning workflow; Portugal/EU connecting factors require structured professional review.";
+  const primaryIsCommonLaw = COMMON_LAW_JURISDICTIONS.includes(matter.primaryJurisdictionCode);
+  const applicableLawSummary = primaryIsCommonLaw
+    ? `Preliminary view: ${matter.primaryJurisdictionCode} common law pack applies to the planning workflow; cross-border connecting factors require structured professional review.`
+    : `Preliminary view: ${matter.primaryJurisdictionCode} civil law pack applies to the planning workflow; forced heirship and cross-border succession rules require professional review.`;
 
   const memo = await prisma.conflictOfLawsMemo.create({
     data: {

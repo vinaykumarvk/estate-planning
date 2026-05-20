@@ -143,7 +143,9 @@ export async function rollbackPack(packId: string, actorUserId: string, targetVe
 
 export async function enabledJurisdictionsForTenant(tenantId: string) {
   const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
-  return decode<string[]>(tenant.enabledCountries, []);
+  const enabled = new Set(decode<string[]>(tenant.enabledCountries, []));
+  const all = await prisma.jurisdiction.findMany({ select: { code: true }, orderBy: { code: "asc" } });
+  return all.map((j) => ({ code: j.code, enabled: enabled.has(j.code) }));
 }
 
 export async function setEnabledJurisdictions(input: unknown) {

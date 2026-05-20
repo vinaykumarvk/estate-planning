@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import { asyncHandler } from "./asyncHandler";
-import { createReviewCommentSchema } from "../../shared/schemas";
+import { createReviewCommentSchema, generateEstatePlanningDocumentSchema } from "../../shared/schemas";
 import { evaluateMatterRules } from "../services/ruleEngine";
-import { evaluateEU650, evaluateHague1961FormalValidity, generateConflictMemo, recordConflictReviewerRationale } from "../services/conflictOfLawsService";
-import { approveReview, finalizeDocument, generateWillDraft } from "../services/documentAssemblyService";
+import { evaluateHague1961FormalValidity, generateConflictMemo, recordConflictReviewerRationale } from "../services/conflictOfLawsService";
+import { approveReview, finalizeDocument, generateEstatePlanningDocument, generateWillDraft } from "../services/documentAssemblyService";
 import { compareScenarios } from "../services/scenarioComparisonService";
 import { runWhatIfSimulation } from "../services/simulationService";
 import { captureWitnessDetails, revokeDocument, transitionSigningCeremony } from "../services/signingService";
@@ -45,6 +45,16 @@ planningRouter.post(
   "/matters/:matterId/documents/will",
   asyncHandler(async (request, response) => {
     response.status(201).json({ document: await generateWillDraft(request.params.matterId, request.body.locale) });
+  })
+);
+
+planningRouter.post(
+  "/matters/:matterId/documents/estate-planning",
+  asyncHandler(async (request, response) => {
+    const data = generateEstatePlanningDocumentSchema.parse(request.body);
+    response.status(201).json({
+      document: await generateEstatePlanningDocument(request.params.matterId, data.documentType, data.locale)
+    });
   })
 );
 
@@ -146,8 +156,8 @@ planningRouter.post(
 
 planningRouter.post(
   "/matters/:matterId/eu650-evaluation",
-  asyncHandler(async (request, response) => {
-    response.json({ result: await evaluateEU650(request.params.matterId) });
+  asyncHandler(async (_request, response) => {
+    response.status(410).json({ error: "EU 650/2012 evaluation is not applicable for African jurisdictions." });
   })
 );
 
@@ -172,6 +182,22 @@ planningRouter.post(
 );
 
 // --- Signing ceremony ---
+
+planningRouter.get(
+  "/matters/:matterId/signing-events",
+  asyncHandler(async (request, response) => {
+    const events = await prisma.signatureEvent.findMany({
+      where: { matterId: request.params.matterId },
+      orderBy: { createdAt: "desc" },
+    });
+    response.json({
+      events: events.map((e) => ({
+        ...e,
+        witnesses: JSON.parse(e.witnessDetails || "[]"),
+      })),
+    });
+  })
+);
 
 planningRouter.post(
   "/signing-events/:eventId/transition",

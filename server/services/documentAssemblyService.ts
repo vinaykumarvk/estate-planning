@@ -1,12 +1,13 @@
 import { prisma } from "../db";
-import type { DocumentDraftResult } from "../../shared/types";
+import type { DocumentDraftResult, EstatePlanningDocumentType, EstatePlanningReview } from "../../shared/types";
 import { decode, stableHash } from "./json";
 import { getActivePack } from "./configurationService";
 import { lintDocumentGlossary } from "./localizationService";
 import { evaluateMatterRules } from "./ruleEngine";
 import { audit } from "./auditService";
+import { generateEstatePlanningReview } from "./estatePlanningReviewService";
 
-export function evaluateClauseCondition(condition: string | null, context: Record<string, boolean>): boolean {
+function evaluateClauseCondition(condition: string | null, context: Record<string, boolean>): boolean {
   if (!condition) return true;
   const key = condition.trim();
   if (key.startsWith("!")) {
@@ -53,7 +54,7 @@ export async function generateWillDraft(matterId: string, locale?: string): Prom
   const clauseContext: Record<string, boolean> = {
     crossBorder,
     hasProtectedHeirs,
-    reservedShareRisk: hasProtectedHeirs && matter.primaryJurisdictionCode === "PT",
+    reservedShareRisk: hasProtectedHeirs && ["SN", "CM", "MZ", "AO"].includes(matter.primaryJurisdictionCode),
     hasMinorBeneficiary,
     married: people.some((p) => p.maritalStatus === "married")
   };
@@ -133,6 +134,191 @@ export async function generateWillDraft(matterId: string, locale?: string): Prom
     entityId: document.id,
     ruleVersion: pack.activeVersion ?? undefined,
     metadata: { templateId: template.id, clausesIncluded, clausesExcluded, requirementRefs: ["FR-026", "FR-027", "FR-028", "FR-029", "SEC-013"] }
+  });
+
+  return {
+    documentId: document.id,
+    title: document.title,
+    status: document.status,
+    reviewStatus: document.reviewStatus as DocumentDraftResult["reviewStatus"],
+    executionStatus: document.executionStatus,
+    hash: document.hash,
+    content: document.content
+  };
+}
+
+const estateDocumentTitles: Record<EstatePlanningDocumentType, string> = {
+  estate_planning_summary: "Estate Planning Summary Report",
+  protection_review_letter: "Protection Review Letter",
+  incapacity_instruction: "Incapacity Planning Instructions",
+  trust_memo: "Trust Planning Memorandum",
+  deed_of_variation_instruction: "Deed of Variation Instructions",
+  cross_border_tax_note: "Cross-Border Tax Position Note"
+};
+
+export function buildEstatePlanningDocumentContent(
+  documentType: EstatePlanningDocumentType,
+  review: EstatePlanningReview
+): string {
+  const openGaps = review.requirements.filter((requirement) => requirement.status === "gap");
+  const partials = review.requirements.filter((requirement) => requirement.status === "partial");
+  const blockerGaps = openGaps.filter((requirement) => requirement.severity === "blocker");
+  const heading = estateDocumentTitles[documentType];
+
+  const baseSections = [
+    heading,
+    "",
+    `Matter: ${review.matterId}`,
+    `Generated: ${review.generatedAt.toISOString()}`,
+    `Core estate fitment: ${review.fitmentPercent}%`,
+    `Met: ${review.metRequirementCount}; Partial: ${review.partialRequirementCount}; Gaps: ${review.gapRequirementCount}; Blockers: ${review.blockerCount}`,
+    "",
+  ];
+
+  const fundingSection = [
+    "Funding and liquidity",
+    `Liquid assets: ${review.summaries.liquidity.liquidAssets}`,
+    `Latest IHT due: ${review.summaries.liquidity.latestIhtDue}`,
+    `Protection cover outside estate: ${review.summaries.liquidity.availableProtectionCover}`,
+    `Funding gap: ${review.summaries.liquidity.fundingGap}`,
+    ""
+  ];
+
+  const actionSection = [
+    "Open professional actions",
+    ...[...blockerGaps, ...openGaps.filter((gap) => gap.severity !== "blocker"), ...partials].map((requirement) =>
+      `${requirement.code} (${requirement.area}): ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`
+    ),
+    blockerGaps.length === 0 && openGaps.length === 0 && partials.length === 0 ? "No open estate-planning gaps recorded." : "",
+    ""
+  ];
+
+  switch (documentType) {
+    case "estate_planning_summary":
+      return [
+        ...baseSections,
+        ...fundingSection,
+        "Cash flow",
+        `Annual income: ${review.summaries.cashFlow.annualIncome}`,
+        `Annual expenses: ${review.summaries.cashFlow.annualExpenses}`,
+        `Annual surplus: ${review.summaries.cashFlow.annualSurplus}`,
+        "",
+        "Cross-border tax",
+        `Countries: ${review.summaries.crossBorderTax.countries.join(", ") || "None recorded"}`,
+        `Unresolved pairs: ${review.summaries.crossBorderTax.unresolvedPairs.join(", ") || "None"}`,
+        "",
+        ...actionSection
+      ].join("\n");
+    case "protection_review_letter":
+      return [
+        ...baseSections,
+        "Protection review",
+        `Total cover: ${review.summaries.protection.totalCover}`,
+        `Cover outside estate: ${review.summaries.protection.coverOutsideEstate}`,
+        `Policies missing trust review: ${review.summaries.protection.policiesMissingTrust}`,
+        `Protection gap: ${review.summaries.protection.protectionGap}`,
+        "",
+        ...actionSection
+      ].join("\n");
+    case "incapacity_instruction":
+      return [
+        ...baseSections,
+        "Incapacity planning",
+        ...review.requirements
+          .filter((requirement) => requirement.area === "Incapacity")
+          .map((requirement) => `${requirement.status}: ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`),
+        "",
+        ...actionSection
+      ].join("\n");
+    case "trust_memo":
+      return [
+        ...baseSections,
+        "Trust planning",
+        ...review.requirements
+          .filter((requirement) => requirement.area === "Trusts" || requirement.area === "Outside-estate assets")
+          .map((requirement) => `${requirement.code}: ${requirement.status} - ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`),
+        "",
+        ...actionSection
+      ].join("\n");
+    case "deed_of_variation_instruction":
+      return [
+        ...baseSections,
+        "Estate reliefs",
+        ...review.requirements
+          .filter((requirement) => requirement.area === "Estate reliefs" || requirement.area === "Lifetime gifts")
+          .map((requirement) => `${requirement.code}: ${requirement.status} - ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`),
+        "",
+        ...actionSection
+      ].join("\n");
+    case "cross_border_tax_note":
+      return [
+        ...baseSections,
+        "Cross-border tax",
+        `Countries: ${review.summaries.crossBorderTax.countries.join(", ") || "None recorded"}`,
+        `Unresolved DTA/no-DTA pairs: ${review.summaries.crossBorderTax.unresolvedPairs.join(", ") || "None"}`,
+        "",
+        ...actionSection
+      ].join("\n");
+  }
+}
+
+export async function generateEstatePlanningDocument(
+  matterId: string,
+  documentType: EstatePlanningDocumentType,
+  locale?: string
+): Promise<DocumentDraftResult> {
+  const matter = await prisma.matter.findUniqueOrThrow({ where: { id: matterId } });
+  const review = await generateEstatePlanningReview(matterId, matter.tenantId);
+  const content = buildEstatePlanningDocumentContent(documentType, review);
+  const title = estateDocumentTitles[documentType];
+  const hash = stableHash({ matterId, documentType, content, generatedAt: review.generatedAt.toISOString() });
+  const pendingReview = review.blockerCount > 0 || review.gapRequirementCount > 0;
+
+  const document = await prisma.document.create({
+    data: {
+      tenantId: matter.tenantId,
+      matterId,
+      documentType,
+      jurisdictionCode: matter.primaryJurisdictionCode,
+      locale: locale ?? matter.languageOfRecord,
+      status: "draft",
+      version: "1.0",
+      title,
+      content,
+      hash,
+      sensitivityClass: "confidential",
+      reviewStatus: pendingReview ? "pending" : "required",
+      executionStatus: "not_started"
+    }
+  });
+
+  await prisma.review.create({
+    data: {
+      tenantId: matter.tenantId,
+      matterId,
+      documentId: document.id,
+      reviewType: "estate_planning_document_review",
+      status: "pending",
+      mandatory: true,
+      triggerReason: pendingReview
+        ? "Estate planning gaps remain and require qualified professional sign-off."
+        : "Estate planning document requires professional approval before finalization."
+    }
+  });
+
+  await audit({
+    tenantId: matter.tenantId,
+    matterId,
+    actorRole: "system",
+    eventType: "document.generated",
+    entityType: "Document",
+    entityId: document.id,
+    metadata: {
+      documentType,
+      fitmentPercent: review.fitmentPercent,
+      blockerCount: review.blockerCount,
+      requirementRefs: ["ADD-011", "ADD-016", "ADD-020", "ADD-024", "ADD-032", "ADD-036", "ADD-058", "ADD-061"]
+    }
   });
 
   return {

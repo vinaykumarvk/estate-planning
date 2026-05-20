@@ -2,8 +2,10 @@ import { prisma } from "../db";
 import type { RuleIssue } from "../../shared/types";
 import { decode, stableHash } from "./json";
 import { getActivePack } from "./configurationService";
-import { calculatePTReservedSharePct } from "./ruleEngine";
+import { calculateForcedHeirshipPct } from "./ruleEngine";
 import { audit } from "./auditService";
+
+const CIVIL_LAW_JURISDICTIONS = ["SN", "CM", "MZ", "AO"];
 
 export async function runWhatIfSimulation(
   matterId: string,
@@ -39,11 +41,12 @@ export async function runWhatIfSimulation(
     return acc;
   }, {});
 
-  if (pack.jurisdictionCode === "PT") {
+  // Civil law jurisdictions: forced heirship simulation
+  if (CIVIL_LAW_JURISDICTIONS.includes(pack.jurisdictionCode)) {
     const hasSpouse = relationships.some((r) => r.relationshipType === "spouse");
     const childCount = relationships.filter((r) => r.relationshipType === "child").length;
     const hasParents = relationships.some((r) => r.relationshipType === "parent");
-    const reservedPct = calculatePTReservedSharePct(hasSpouse, childCount, hasParents);
+    const reservedPct = calculateForcedHeirshipPct(pack.jurisdictionCode, hasSpouse, childCount, hasParents);
     const freeQuota = 1 - reservedPct;
 
     const nonProtectedPct = simulatedDispositions
@@ -56,24 +59,51 @@ export async function runWhatIfSimulation(
 
     if (nonProtectedPct > freeQuota * 100) {
       issues.push({
-        code: "RESERVED_SHARE_CONFLICT",
+        code: "FORCED_HEIRSHIP_CONFLICT",
         severity: "blocker",
         message: `Simulated: non-protected heirs receive ${nonProtectedPct}% but free quota is ${Math.round(freeQuota * 100)}%.`,
-        ruleCode: "PT-RESERVED-SHARE",
-        sourceCode: "S4",
+        ruleCode: `${pack.jurisdictionCode}-FORCED-HEIRSHIP`,
+        sourceCode: `${pack.jurisdictionCode}-S1`,
         professionalReview: true
       });
     }
   }
 
-  if (pack.jurisdictionCode === "EW" && (estateValueByCurrency.GBP ?? 0) > 325000) {
+  // South Africa: estate duty simulation
+  if (pack.jurisdictionCode === "ZA" && (estateValueByCurrency.ZAR ?? 0) > 3500000) {
+    const estateValue = estateValueByCurrency.ZAR ?? 0;
+    const taxableAmount = estateValue - 3500000;
+    const dutyRate = taxableAmount > 30000000 ? "25%" : "20%";
     issues.push({
       code: "TAX_THRESHOLD_TRIGGER",
       severity: "warning",
-      message: "Simulated: estate value exceeds UK IHT threshold.",
-      ruleCode: "EW-IHT-THRESHOLD",
-      sourceCode: "S6",
+      message: `Simulated: estate value ZAR ${estateValue.toLocaleString()} exceeds threshold. Estate duty at ${dutyRate}.`,
+      ruleCode: "ZA-ESTATE-DUTY",
+      sourceCode: "ZA-S1",
       professionalReview: true
+    });
+  }
+
+  // Kenya/Ghana: customary law override simulation
+  if (pack.jurisdictionCode === "KE") {
+    issues.push({
+      code: "CUSTOMARY_LAW_CONFLICT",
+      severity: "info",
+      message: "Simulated: verify that dispositions comply with Kenya Law of Succession Act (Cap 160) and do not conflict with customary law.",
+      ruleCode: "KE-SUCCESSION-ACT",
+      sourceCode: "KE-S1",
+      professionalReview: false
+    });
+  }
+
+  if (pack.jurisdictionCode === "GH") {
+    issues.push({
+      code: "CUSTOMARY_LAW_CONFLICT",
+      severity: "info",
+      message: "Simulated: Ghana Intestate Succession Law (PNDC Law 111) may limit testamentary freedom for family property.",
+      ruleCode: "GH-INTESTATE-LAW",
+      sourceCode: "GH-S1",
+      professionalReview: false
     });
   }
 

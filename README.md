@@ -32,7 +32,7 @@ The API runs on `http://127.0.0.1:4000`.
 
 ## Seeded Data
 
-- Tenant: `Atlas Estate Law`
+- Tenant: `Ecobank Africa`
 - Jurisdiction packs: England & Wales wills pack, Portugal wills pack
 - Matter: `Morgan family cross-border will`
 - Locales: `en-GB`, `pt-PT`

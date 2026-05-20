@@ -8,7 +8,8 @@ export default defineConfig({
     testTimeout: 30000,
     fileParallelism: false,
     env: {
-      WEBHOOK_HMAC_KEY: "test-hmac-key"
+      WEBHOOK_HMAC_KEY: "test-hmac-key",
+      PRISMA_CONNECTION_LIMIT: "5"
     }
   }
 });

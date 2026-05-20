@@ -17,14 +17,20 @@ function age(dateOfBirth: Date | null): number | null {
   return years;
 }
 
-export function calculatePTReservedSharePct(hasSpouse: boolean, childCount: number, hasParents: boolean): number {
-  if (hasSpouse && childCount >= 2) return 2 / 3;
-  if (hasSpouse && childCount === 1) return 2 / 3;
-  if (!hasSpouse && childCount >= 2) return 2 / 3;
-  if (!hasSpouse && childCount === 1) return 1 / 2;
-  if (hasSpouse && childCount === 0 && !hasParents) return 1 / 2;
-  if (hasSpouse && childCount === 0 && hasParents) return 2 / 3;
-  if (!hasSpouse && childCount === 0 && hasParents) return 1 / 3;
+const CIVIL_LAW_JURISDICTIONS = ["SN", "CM", "MZ", "AO"];
+
+export function calculateForcedHeirshipPct(jurisdictionCode: string, hasSpouse: boolean, childCount: number, hasParents: boolean): number {
+  if (CIVIL_LAW_JURISDICTIONS.includes(jurisdictionCode)) {
+    // Francophone civil law (SN/CM): réserve héréditaire
+    // Lusophone civil law (MZ/AO): legítima
+    if (hasSpouse && childCount >= 2) return 2 / 3;
+    if (hasSpouse && childCount === 1) return 2 / 3;
+    if (!hasSpouse && childCount >= 2) return 2 / 3;
+    if (!hasSpouse && childCount === 1) return 1 / 2;
+    if (hasSpouse && childCount === 0 && !hasParents) return 1 / 2;
+    if (hasSpouse && childCount === 0 && hasParents) return 2 / 3;
+    if (!hasSpouse && childCount === 0 && hasParents) return 1 / 3;
+  }
   return 0;
 }
 
@@ -98,50 +104,88 @@ export async function evaluateMatterRules(matterId: string, scenarioId?: string)
       severity: "warning",
       message: "Minor/dependent beneficiary facts require professional review and guardianship consideration.",
       ruleCode: "COMMON-MINOR-BENEFICIARY",
-      sourceCode: pack.jurisdictionCode === "PT" ? "S4" : "S14",
+      sourceCode: "FR-014",
       professionalReview: true
     });
   }
 
-  if (pack.jurisdictionCode === "EW" && (estateValueByCurrency.GBP ?? 0) > 325000) {
-    issues.push({
-      code: "TAX_THRESHOLD_TRIGGER",
-      severity: "warning",
-      message: "Estate value exceeds the configured UK IHT threshold; professional tax review is required.",
-      ruleCode: "EW-IHT-THRESHOLD",
-      sourceCode: "S6",
-      professionalReview: true
-    });
-
-    // EW RNRB eligibility check
-    const hasResidence = assets.some((a) => a.assetClass === "real_estate" && a.situsCountry === "GB");
-    const hasDescendant = relationships.some((r) => r.relationshipType === "child");
-    const residenceToDescendant = hasResidence && hasDescendant &&
-      dispositions.some((d) => {
-        const asset = assets.find((a) => a.id === d.assetId);
-        const rel = relationships.find((r) => r.toPersonId === d.beneficiaryPersonId);
-        return asset?.assetClass === "real_estate" && rel?.relationshipType === "child";
-      });
-    if (residenceToDescendant) {
+  // --- Nigeria: Islamic law conflict check (Northern Nigeria) ---
+  if (pack.jurisdictionCode === "NG") {
+    // Check for potential Islamic law conflict in northern states
+    const hasIslamicIndicator = people.some((p) =>
+      p.habitualResidence?.toLowerCase().includes("north") || p.nationality === "NG"
+    );
+    if (hasIslamicIndicator && relationships.some((r) => r.relationshipType === "spouse")) {
       issues.push({
-        code: "EW_RNRB_ELIGIBLE",
-        severity: "info",
-        message: "Estate may qualify for Residence Nil-Rate Band (RNRB) — primary residence passing to direct descendant.",
-        ruleCode: "EW-RNRB",
-        sourceCode: "CS-009",
-        professionalReview: false
+        code: "NG_ISLAMIC_LAW_CONFLICT",
+        severity: "warning",
+        message: "Testator may be subject to Islamic personal law in Northern Nigeria — Wills Act may not apply. Professional review required.",
+        ruleCode: "NG-WILLS-ACT",
+        sourceCode: "NG-S1",
+        professionalReview: true
       });
     }
   }
 
-  if (pack.jurisdictionCode === "PT") {
+  // --- South Africa: Estate duty threshold and matrimonial regime ---
+  if (pack.jurisdictionCode === "ZA" && (estateValueByCurrency.ZAR ?? 0) > 3500000) {
+    issues.push({
+      code: "TAX_THRESHOLD_TRIGGER",
+      severity: "warning",
+      message: "Estate value exceeds ZAR 3.5M estate duty threshold; professional tax review is required.",
+      ruleCode: "ZA-ESTATE-DUTY",
+      sourceCode: "ZA-S1",
+      professionalReview: true
+    });
+  }
+
+  if (pack.jurisdictionCode === "ZA" && people.some((p) => p.maritalStatus === "married")) {
+    issues.push({
+      code: "ZA_MATRIMONIAL_REGIME_REVIEW",
+      severity: "warning",
+      message: "Married testator under South African law requires matrimonial property regime review (in/out community of property).",
+      ruleCode: "ZA-MATRIMONIAL",
+      sourceCode: "ZA-S2",
+      professionalReview: true
+    });
+  }
+
+  // --- Kenya: Law of Succession Act compliance ---
+  if (pack.jurisdictionCode === "KE") {
+    const hasCustomaryIndicator = people.some((p) => p.habitualResidence === "KE");
+    if (hasCustomaryIndicator) {
+      issues.push({
+        code: "CUSTOMARY_LAW_CONFLICT",
+        severity: "warning",
+        message: "Kenyan Law of Succession Act (Cap 160) may interact with customary law — professional review required.",
+        ruleCode: "KE-SUCCESSION-ACT",
+        sourceCode: "KE-S1",
+        professionalReview: true
+      });
+    }
+  }
+
+  // --- Ghana: Intestate Succession Law (PNDC Law 111) ---
+  if (pack.jurisdictionCode === "GH") {
+    issues.push({
+      code: "CUSTOMARY_LAW_CONFLICT",
+      severity: "info",
+      message: "Ghana Intestate Succession Law (PNDC Law 111) may override testamentary dispositions for certain family property.",
+      ruleCode: "GH-INTESTATE-LAW",
+      sourceCode: "GH-S1",
+      professionalReview: false
+    });
+  }
+
+  // --- Civil law jurisdictions: Forced heirship ---
+  if (CIVIL_LAW_JURISDICTIONS.includes(pack.jurisdictionCode)) {
     const hasSpouse = relationships.some((r) => r.relationshipType === "spouse");
     const childCount = relationships.filter((r) => r.relationshipType === "child").length;
     const hasParents = relationships.some((r) => r.relationshipType === "parent");
     const protectedHeirRelationships = relationships.filter((relationship) =>
       ["spouse", "child", "parent"].includes(relationship.relationshipType)
     );
-    const reservedPct = calculatePTReservedSharePct(hasSpouse, childCount, hasParents);
+    const reservedPct = calculateForcedHeirshipPct(pack.jurisdictionCode, hasSpouse, childCount, hasParents);
     const freeQuota = 1 - reservedPct;
     const nonProtectedPct = dispositions
       .filter((disposition) => disposition.beneficiaryPersonId)
@@ -152,42 +196,28 @@ export async function evaluateMatterRules(matterId: string, scenarioId?: string)
       .reduce((sum, disposition) => sum + (disposition.percentage ?? 0), 0);
 
     if (protectedHeirRelationships.length > 0 && nonProtectedPct > freeQuota * 100) {
+      const ruleCode = ["SN", "CM"].includes(pack.jurisdictionCode)
+        ? `${pack.jurisdictionCode}-FORCED-HEIRSHIP`
+        : `${pack.jurisdictionCode}-LEGITIMA`;
       issues.push({
-        code: "RESERVED_SHARE_CONFLICT",
+        code: "FORCED_HEIRSHIP_CONFLICT",
         severity: "blocker",
-        message: `Scenario may impair protected heirs' reserved share (${Math.round(reservedPct * 100)}%) under the Portugal pack.`,
-        ruleCode: "PT-RESERVED-SHARE",
-        sourceCode: "S4",
+        message: `Scenario may impair protected heirs' reserved share (${Math.round(reservedPct * 100)}%) under ${pack.jurisdictionCode} forced heirship rules.`,
+        ruleCode,
+        sourceCode: `${pack.jurisdictionCode}-S1`,
         professionalReview: true
       });
     }
 
-    // Matrimonial regime review for married PT testator
+    // Matrimonial regime review for married testator in civil law jurisdictions
     if (people.some((p) => p.maritalStatus === "married")) {
       issues.push({
         code: "MATRIMONIAL_REGIME_REVIEW",
         severity: "warning",
-        message: "Married testator under Portuguese law requires matrimonial property regime review.",
-        ruleCode: "PT-MATRIMONIAL-REGIME",
+        message: `Married testator under ${pack.jurisdictionCode} civil law requires matrimonial property regime review.`,
+        ruleCode: `${pack.jurisdictionCode}-MATRIMONIAL-REGIME`,
         sourceCode: "CS-008",
         professionalReview: true
-      });
-    }
-
-    // PT stamp duty risk on non-exempt beneficiary
-    const nonExemptDispositions = dispositions.filter((d) => {
-      if (!d.beneficiaryPersonId) return false;
-      const rel = relationships.find((r) => r.toPersonId === d.beneficiaryPersonId);
-      return !rel || !["spouse", "child", "parent"].includes(rel.relationshipType);
-    });
-    if (nonExemptDispositions.length > 0) {
-      issues.push({
-        code: "PT_STAMP_DUTY_RISK",
-        severity: "info",
-        message: "Non-exempt beneficiary transfers may attract 10% Portuguese stamp duty (Imposto do Selo).",
-        ruleCode: "PT-STAMP-DUTY",
-        sourceCode: "CS-006",
-        professionalReview: false
       });
     }
   }
@@ -250,9 +280,13 @@ export async function evaluateMatterRules(matterId: string, scenarioId?: string)
   }
 
   // Tax residence impact
+  const jurisdictionCountryMap: Record<string, string> = {
+    NG: "NG", GH: "GH", ZA: "ZA", KE: "KE", SN: "SN", CM: "CM", MZ: "MZ", AO: "AO"
+  };
+  const primaryCountry = jurisdictionCountryMap[matter.primaryJurisdictionCode] ?? matter.primaryJurisdictionCode;
   for (const person of people) {
     if (person.taxResidency && person.taxResidency !== matter.primaryJurisdictionCode &&
-        person.taxResidency !== "GB" && person.taxResidency !== "PT") {
+        person.taxResidency !== primaryCountry) {
       issues.push({
         code: "TAX_RESIDENCE_IMPACT",
         severity: "warning",
@@ -274,6 +308,75 @@ export async function evaluateMatterRules(matterId: string, scenarioId?: string)
         ruleCode: "COMMON-ALTERNATE-DISPOSITION",
         sourceCode: "FR-015",
         professionalReview: false
+      });
+    }
+  }
+
+  // --- Will Coordination: Revocation clause conflicts (ADD-054) ---
+  const willRecords = await prisma.willCoordination.findMany({ where: { matterId } });
+  if (willRecords.length >= 2) {
+    for (const will of willRecords) {
+      if (!will.revocationClause) continue;
+      const clause = will.revocationClause.toLowerCase();
+      const isBroad =
+        (clause.includes("revoke all") || clause.includes("revoke all previous wills")) &&
+        !clause.includes("relating to") &&
+        !clause.includes("limited to") &&
+        !clause.includes("pertaining to") &&
+        !clause.includes("in respect of");
+      if (isBroad) {
+        issues.push({
+          code: "REVOCATION_CLAUSE_CONFLICT",
+          severity: "warning",
+          message: `Will in ${will.jurisdictionCode} contains a broad revocation clause that may unintentionally revoke wills in other jurisdictions.`,
+          ruleCode: "WILL-REVOCATION-CONFLICT",
+          sourceCode: "ADD-054",
+          professionalReview: true
+        });
+        break; // one issue per matter is sufficient
+      }
+    }
+  }
+
+  // --- Will Coordination: Assets unassigned to any will (ADD-055) ---
+  if (willRecords.length > 0) {
+    const willJurisdictions = new Set(willRecords.map((w) => w.jurisdictionCode));
+    const countryToJurisdiction: Record<string, string> = {
+      GB: "EW", UK: "EW", NG: "NG", GH: "GH", ZA: "ZA", KE: "KE",
+      SN: "SN", CM: "CM", MZ: "MZ", AO: "AO", EW: "EW", PT: "PT"
+    };
+    const unassigned = assets.filter((asset) => {
+      const jurisdiction = countryToJurisdiction[asset.situsCountry] ?? asset.situsCountry;
+      return !willJurisdictions.has(jurisdiction);
+    });
+    if (unassigned.length > 0) {
+      issues.push({
+        code: "ASSET_UNASSIGNED_TO_WILL",
+        severity: "warning",
+        message: `${unassigned.length} asset(s) in situs countries not covered by any will: ${unassigned.map((a) => a.description).join(", ")}.`,
+        ruleCode: "WILL-ASSET-COVERAGE",
+        sourceCode: "ADD-055",
+        professionalReview: true
+      });
+    }
+  }
+
+  // --- Domicile snap-back risk (ADD-064) ---
+  for (const person of people) {
+    if (
+      person.domicileOfOrigin &&
+      person.domicileCountry &&
+      person.domicileOfOrigin !== person.domicileCountry &&
+      person.residenceCountry &&
+      person.residenceCountry !== person.domicileOfOrigin
+    ) {
+      issues.push({
+        code: "DOMICILE_SNAPBACK_RISK",
+        severity: "warning",
+        message: `${person.legalName} has domicile of origin (${person.domicileOfOrigin}) different from current domicile (${person.domicileCountry}). Snap-back risk exists if domicile of choice is abandoned.`,
+        ruleCode: "DOMICILE-SNAPBACK",
+        sourceCode: "ADD-064",
+        professionalReview: true
       });
     }
   }

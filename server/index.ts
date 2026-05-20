@@ -5,8 +5,9 @@ import { prisma } from "./db";
 const port = Number(process.env.PORT ?? 4000);
 const app = createApp();
 
-const server = app.listen(port, "127.0.0.1", () => {
-  process.stdout.write(`Estate planning API listening on http://127.0.0.1:${port}\n`);
+const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+const server = app.listen(port, host, () => {
+  process.stdout.write(`Estate planning API listening on http://${host}:${port}\n`);
 });
 
 function shutdown(signal: string) {

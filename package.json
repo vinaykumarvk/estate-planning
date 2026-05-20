@@ -10,7 +10,7 @@
     "start": "tsx server/index.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
-    "build:server": "tsc -p tsconfig.node.json",
+    "build:server": "tsc -p tsconfig.node.json && node scripts/fix-esm-imports.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit",
     "test": "vitest run",
     "db:generate": "prisma generate",
@@ -20,7 +20,6 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
-    "@vitejs/plugin-react": "^4.3.4",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -29,9 +28,11 @@
     "helmet": "^8.0.0",
     "i18next": "^26.1.0",
     "lucide-react": "^0.468.0",
+    "pdfmake": "^0.2.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^17.0.7",
+    "recharts": "^2.15.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -41,6 +42,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/supertest": "^7.2.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.1.0",
     "jsdom": "^25.0.1",
     "prisma": "^5.22.0",

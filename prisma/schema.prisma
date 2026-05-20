@@ -203,6 +203,9 @@ model Matter {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
+  faraidCalculations      FaraidCalculation[]
+  clientGoals             ClientGoal[]
+
   @@index([tenantId])
   @@index([primaryJurisdictionCode])
 }
@@ -223,8 +226,11 @@ model Person {
   taxResidency          String?
   maritalStatus         String?
   preferredLanguage     String   @default("en-GB")
+  domicileOfOrigin      String?
   identityDocumentRefs  String   @default("[]")
   sensitivityClass      String   @default("confidential")
+  religion              String?
+  legalSystemPref       String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -294,6 +300,8 @@ model Asset {
   dynamicFields          String   @default("{}")
   taxonomyCode           String?
   evidenceRefs           String   @default("[]")
+  digitalAccessMethod    String?
+  volatilityFlag         Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -999,6 +1007,325 @@ model FileAttachment {
   storageLocation  String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+}
+
+model LifetimeGift {
+  id                String   @id @default(cuid())
+  tenantId          String
+  matterId          String
+  donorPersonId     String
+  recipientPersonId String?
+  giftDate          DateTime
+  value             Float
+  currency          String
+  assetType         String
+  relationship      String
+  exemptionClaimed  String   @default("none")
+  petOrClt          String   @default("pet")
+  description       String
+  taperBand         String?
+  yearsElapsed      Float?
+  evidenceRefs      String   @default("[]")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([donorPersonId])
+}
+
+model EstatePlanningRecord {
+  id             String   @id @default(cuid())
+  tenantId       String
+  matterId       String
+  personId       String?
+  recordType     String
+  title          String
+  status         String   @default("active")
+  reviewStatus   String   @default("pending")
+  payload        String   @default("{}")
+  evidenceRefs   String   @default("[]")
+  effectiveDate  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([matterId, recordType])
+  @@index([personId])
+}
+
+model EstateCashFlowItem {
+  id            String   @id @default(cuid())
+  tenantId      String
+  matterId      String
+  personId      String?
+  itemType      String
+  category      String
+  description   String
+  amount        Float
+  currency      String
+  frequency     String
+  startDate     DateTime?
+  endDate       DateTime?
+  evidenceRefs  String   @default("[]")
+  reviewStatus  String   @default("pending")
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([matterId, itemType])
+  @@index([personId])
+}
+
+model ProtectionPolicy {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  matterId            String
+  personId            String?
+  policyType          String
+  carrier             String
+  policyRef           String?
+  coverAmount         Float
+  currency            String
+  ownerPersonId       String?
+  lifeAssuredPersonId String?
+  beneficiaryLabel    String?
+  inTrust             Boolean  @default(false)
+  outsideEstate       Boolean  @default(false)
+  premiumAmount       Float?
+  premiumFrequency    String?
+  evidenceRefs        String   @default("[]")
+  reviewStatus        String   @default("pending")
+  status              String   @default("active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([personId])
+}
+
+model EstateTrustStructure {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  matterId              String
+  name                  String
+  trustType             String
+  taxTreatment          String
+  jurisdictionCode      String?
+  settledByPersonId     String?
+  trusteePersonIds      String   @default("[]")
+  beneficiaryPersonIds  String   @default("[]")
+  linkedAssetIds        String   @default("[]")
+  scenarioId            String?
+  evidenceRefs          String   @default("[]")
+  reviewStatus          String   @default("pending")
+  status                String   @default("active")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([trustType])
+}
+
+model IncapacityInstrument {
+  id                         String   @id @default(cuid())
+  tenantId                   String
+  matterId                   String
+  personId                   String
+  instrumentType             String
+  jurisdictionCode           String
+  attorneyPersonIds          String   @default("[]")
+  substituteAttorneyPersonIds String  @default("[]")
+  executionStatus            String
+  registeredAt               DateTime?
+  effectiveDate              DateTime?
+  evidenceRefs               String   @default("[]")
+  reviewStatus               String   @default("pending")
+  status                     String   @default("active")
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([personId])
+}
+
+model CrossBorderTaxPosition {
+  id            String   @id @default(cuid())
+  tenantId      String
+  matterId      String
+  countryA      String
+  countryB      String
+  reliefType    String
+  treatyStatus  String
+  noDtaWarning  Boolean  @default(false)
+  notes         String?
+  evidenceRefs  String   @default("[]")
+  reviewStatus  String   @default("pending")
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([countryA, countryB])
+}
+
+model EstateReliefAssessment {
+  id                String   @id @default(cuid())
+  tenantId          String
+  matterId          String
+  personId          String?
+  reliefType        String
+  subject           String
+  eventDate         DateTime?
+  relevantValue     Float
+  currency          String
+  deadlineDate      DateTime?
+  riskLevel         String
+  assessmentSummary String
+  payload           String   @default("{}")
+  evidenceRefs      String   @default("[]")
+  reviewStatus      String   @default("pending")
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([reliefType])
+  @@index([personId])
+}
+
+model OutsideEstateNomination {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  matterId            String
+  personId            String?
+  assetId             String?
+  nominationType      String
+  provider            String?
+  beneficiaryLabel    String
+  beneficiaryPersonId String?
+  nominationDate      DateTime?
+  passesOutsideEstate Boolean  @default(true)
+  evidenceRefs        String   @default("[]")
+  reviewStatus        String   @default("pending")
+  status              String   @default("active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([personId])
+  @@index([assetId])
+}
+
+model IhtCalculation {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  matterId            String
+  personId            String
+  scenarioId          String
+  effectiveDate       DateTime
+  netEstate           Float
+  nrb                 Float
+  nrbUsed             Float
+  rnrb                Float
+  rnrbTapering        Float    @default(0)
+  transferableNrb     Float    @default(0)
+  transferableRnrb    Float    @default(0)
+  charitableRate      Boolean  @default(false)
+  taxableEstate       Float
+  ihtDue              Float
+  exemptionsApplied   String   @default("{}")
+  sevenYearTransfers  String   @default("[]")
+  taperRelief         Float    @default(0)
+  calculationDetails  String   @default("{}")
+  createdAt           DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([matterId])
+  @@index([personId])
+}
+
+model WillCoordination {
+  id                String    @id @default(cuid())
+  tenantId          String
+  matterId          String
+  jurisdictionCode  String
+  documentType      String
+  documentId        String?
+  dateExecuted      DateTime?
+  solicitorNotary   String?
+  status            String    @default("draft")
+  revocationClause  String?
+  assetIds          String    @default("[]")
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([matterId])
+}
+
+model DomicileRecord {
+  id                    String    @id @default(cuid())
+  tenantId              String
+  personId              String
+  domicileOfOrigin      String?
+  domicileOfChoice      String?
+  domicileOfDependency  String?
+  dateEstablished       DateTime?
+  evidenceSummary       String?
+  snapBackRisk          Boolean   @default(false)
+  snapBackReason        String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([personId])
+}
+
+model FaraidCalculation {
+  id               String   @id @default(cuid())
+  tenantId         String
+  matterId         String
+  deceasedPersonId String
+  netEstate        Float
+  currency         String   @default("GBP")
+  method           String   @default("standard")
+  heirs            String   @default("[]")
+  totalAllocated   Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  matter           Matter   @relation(fields: [matterId], references: [id])
+
+  @@index([tenantId])
+  @@index([matterId])
+}
+
+model ClientGoal {
+  id                String   @id @default(cuid())
+  tenantId          String
+  matterId          String
+  goalText          String
+  category          String
+  priority          String   @default("medium")
+  status            String   @default("pending")
+  linkedScenarioIds String   @default("[]")
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  matter            Matter   @relation(fields: [matterId], references: [id])
 
   @@index([tenantId])
   @@index([matterId])

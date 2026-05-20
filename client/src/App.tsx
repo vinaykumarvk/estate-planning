@@ -1,28 +1,25 @@
 import {
-  AlertTriangle,
-  Bot,
   CheckCircle2,
-  Download,
   FileText,
   Globe2,
   Menu,
-  Scale,
-  Settings as SettingsIcon,
-  ShieldCheck,
-  TableProperties,
-  Workflow,
+  Plus,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type BootstrapPayload, type WorkspacePayload } from "./lib/api";
-import { Bilingual } from "./Bilingual";
-import { SecondaryLanguageProvider } from "./SecondaryLanguageContext";
+import { T } from "./components/primitives/T";
+import { LanguageModeProvider, type LangMode, type UILanguage } from "./LanguageModeContext";
 import { Settings } from "./Settings";
 import { useTheme, type ThemePreference } from "./theme";
-import { ensureLocaleLoaded } from "./i18n";
-
-type TabKey = "front" | "middle" | "back" | "api" | "reports" | "settings";
+import i18n, { ensureLocaleLoaded } from "./i18n";
+import { MatterContext } from "./components/hooks/useMatterContext";
+import { MatterCreateForm } from "./components/matters/MatterCreateForm";
+import { NavigationProvider, useNavigation } from "./navigation";
+import { Sidebar } from "./components/navigation/Sidebar";
+import { Breadcrumbs } from "./components/navigation/Breadcrumbs";
+import { ContentRouter } from "./components/navigation/ContentRouter";
 
 interface IntakeResponse {
   intake: { totalModules: number; completeModules: number; score: number; missingCritical: string[] };
@@ -61,20 +58,26 @@ interface KpiResponse {
   };
 }
 
-const tabs: Array<{ key: TabKey; labelKey: string; icon: typeof Scale }> = [
-  { key: "front", labelKey: "nav.front_office", icon: Scale },
-  { key: "middle", labelKey: "nav.middle_office", icon: Workflow },
-  { key: "back", labelKey: "nav.back_office", icon: TableProperties },
-  { key: "api", labelKey: "nav.api", icon: Download },
-  { key: "reports", labelKey: "nav.reports", icon: ShieldCheck },
-  { key: "settings", labelKey: "settings.title", icon: SettingsIcon }
-];
-
 export function App() {
+  return (
+    <NavigationProvider>
+      <AppInner />
+    </NavigationProvider>
+  );
+}
+
+function AppInner() {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme("estate-theme");
-  const [secondaryLang, setSecondaryLang] = useState<"fr" | "pt" | "es" | "none">(() => {
-    return (localStorage.getItem("estate-secondary-lang") as "fr" | "pt" | "es" | "none") || "none";
+  const { section, sidebarCollapsed, userRole, setUserRole, navigateTo } = useNavigation();
+  const [langMode, setLangMode] = useState<LangMode>(() => {
+    return (localStorage.getItem("estate-lang-mode") as LangMode) || "monolingual";
+  });
+  const [primaryLang, setPrimaryLang] = useState<UILanguage>(() => {
+    return (localStorage.getItem("estate-primary-lang") as UILanguage) || "en";
+  });
+  const [secondaryLang, setSecondaryLang] = useState<UILanguage>(() => {
+    return (localStorage.getItem("estate-secondary-lang") as UILanguage) || "fr";
   });
 
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
@@ -84,17 +87,25 @@ export function App() {
   const [tables, setTables] = useState<TableCatalogResponse["tables"]>([]);
   const [legalContent, setLegalContent] = useState<LegalContentResponse | null>(null);
   const [kpis, setKpis] = useState<KpiResponse["kpis"] | null>(null);
-  const [tab, setTab] = useState<TabKey>("front");
-  const [locale, setLocale] = useState<"en-GB" | "pt-PT">("en-GB");
+  const [locale, setLocale] = useState<"en" | "fr" | "pt" | "es">("en");
   const [status, setStatus] = useState<string>("");
+  const [busy, setBusy] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
-  const selectedMatterId = bootstrap?.matters[0]?.id;
+  const [showCreateMatter, setShowCreateMatter] = useState(false);
+  const [selectedMatterId, setSelectedMatterId] = useState<string | undefined>();
 
   useEffect(() => {
     void load();
   }, []);
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!status) return;
+    const timer = setTimeout(() => setStatus(""), 4000);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -106,10 +117,33 @@ export function App() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, []);
 
-  async function handleLanguageChange(lang: string) {
-    const typedLang = lang as "fr" | "pt" | "es" | "none";
-    await ensureLocaleLoaded(lang);
-    setSecondaryLang(typedLang);
+  useEffect(() => {
+    async function syncLanguage() {
+      if (langMode === "monolingual") {
+        await ensureLocaleLoaded(primaryLang);
+        i18n.changeLanguage(primaryLang);
+        document.documentElement.lang = primaryLang;
+      } else {
+        i18n.changeLanguage("en");
+        document.documentElement.lang = "en";
+        await ensureLocaleLoaded(secondaryLang);
+      }
+    }
+    void syncLanguage();
+  }, [langMode, primaryLang, secondaryLang]);
+
+  function handleLangModeChange(mode: LangMode) {
+    setLangMode(mode);
+    localStorage.setItem("estate-lang-mode", mode);
+  }
+
+  async function handlePrimaryLangChange(lang: UILanguage) {
+    setPrimaryLang(lang);
+    localStorage.setItem("estate-primary-lang", lang);
+  }
+
+  async function handleSecondaryLangChange(lang: UILanguage) {
+    setSecondaryLang(lang);
     localStorage.setItem("estate-secondary-lang", lang);
   }
 
@@ -123,11 +157,13 @@ export function App() {
       setError(null);
       const boot = await api<BootstrapPayload>("/api/bootstrap");
       setBootstrap(boot);
-      setLocale((boot.tenant?.defaultLocale as "en-GB" | "pt-PT") ?? "en-GB");
-      if (boot.matters[0]) {
+      setLocale((boot.tenant?.defaultLocale as "en" | "fr" | "pt" | "es") ?? "en");
+      const firstMatterId = boot.matters[0]?.id;
+      if (firstMatterId) {
+        setSelectedMatterId(firstMatterId);
         const [workspacePayload, intakePayload, tablePayload, legalPayload, kpiPayload] = await Promise.all([
-          api<WorkspacePayload>(`/api/matters/${boot.matters[0].id}`),
-          api<IntakeResponse>(`/api/matters/${boot.matters[0].id}/intake-score`),
+          api<WorkspacePayload>(`/api/matters/${firstMatterId}`),
+          api<IntakeResponse>(`/api/matters/${firstMatterId}/intake-score`),
           api<TableCatalogResponse>("/api/admin/table-catalog"),
           api<LegalContentResponse>("/api/admin/legal-content"),
           api<KpiResponse>("/api/reports/phase-1-kpis")
@@ -146,8 +182,9 @@ export function App() {
   }
 
   async function runRules() {
-    if (!selectedMatterId) return;
+    if (!selectedMatterId || busy) return;
     try {
+      setBusy("runRules");
       setStatus(t("status.running_rules"));
       const payload = await api<RulesResponse>(`/api/planning/matters/${selectedMatterId}/rules/evaluate`, { method: "POST", body: "{}" });
       setRules(payload.summary);
@@ -155,24 +192,31 @@ export function App() {
       await refreshWorkspace();
     } catch (err) {
       setStatus(`${t("common.error")}: ${err instanceof Error ? err.message : t("error.rule_scan_failed")}`);
+    } finally {
+      setBusy("");
     }
   }
 
   async function createMemo() {
-    if (!selectedMatterId) return;
+    if (!selectedMatterId || busy) return;
     try {
+      setBusy("createMemo");
       setStatus(t("status.creating_memo"));
       await api(`/api/planning/matters/${selectedMatterId}/conflict-of-laws`, { method: "POST", body: "{}" });
       setStatus(t("status.conflict_memo_created"));
       await refreshWorkspace();
+      navigateTo("documents", "assembly");
     } catch (err) {
       setStatus(`${t("common.error")}: ${err instanceof Error ? err.message : t("error.memo_creation_failed")}`);
+    } finally {
+      setBusy("");
     }
   }
 
   async function generateWill() {
-    if (!selectedMatterId) return;
+    if (!selectedMatterId || busy) return;
     try {
+      setBusy("generateWill");
       setStatus(t("status.generating_will"));
       await api(`/api/planning/matters/${selectedMatterId}/documents/will`, {
         method: "POST",
@@ -180,24 +224,30 @@ export function App() {
       });
       setStatus(t("status.will_generated"));
       await refreshWorkspace();
+      navigateTo("documents", "assembly");
     } catch (err) {
       setStatus(`${t("common.error")}: ${err instanceof Error ? err.message : t("error.will_generation_failed")}`);
+    } finally {
+      setBusy("");
     }
   }
 
   async function exportBundle() {
-    if (!selectedMatterId) return;
+    if (!selectedMatterId || busy) return;
     try {
+      setBusy("exportBundle");
       setStatus(t("status.exporting"));
       await api(`/api/exports/matters/${selectedMatterId}?requestedBy=user-solicitor`);
       setStatus(t("status.export_generated"));
       await refreshWorkspace();
     } catch (err) {
       setStatus(`${t("common.error")}: ${err instanceof Error ? err.message : t("error.export_failed")}`);
+    } finally {
+      setBusy("");
     }
   }
 
-  async function refreshWorkspace() {
+  const refreshWorkspace = useCallback(async () => {
     if (!selectedMatterId) return;
     const [workspacePayload, kpiPayload] = await Promise.all([
       api<WorkspacePayload>(`/api/matters/${selectedMatterId}`),
@@ -205,7 +255,24 @@ export function App() {
     ]);
     setWorkspace(workspacePayload);
     setKpis(kpiPayload.kpis);
-  }
+  }, [selectedMatterId]);
+
+  const switchMatter = useCallback(async (matterId: string) => {
+    setSelectedMatterId(matterId);
+    try {
+      setLoading(true);
+      const [workspacePayload, intakePayload] = await Promise.all([
+        api<WorkspacePayload>(`/api/matters/${matterId}`),
+        api<IntakeResponse>(`/api/matters/${matterId}/intake-score`),
+      ]);
+      setWorkspace(workspacePayload);
+      setIntake(intakePayload.intake);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.load_failed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
 
   const selectedMatter = workspace?.matter;
   const tableAreas = useMemo(() => {
@@ -215,38 +282,24 @@ export function App() {
     }, {});
   }, [tables]);
 
-  return (
-    <SecondaryLanguageProvider lang={secondaryLang}>
-      <main className="app-shell">
-        <aside className={`sidebar ${navOpen ? "open" : ""}`}>
-          <div className="brand-block">
-            <Scale aria-hidden="true" />
-            <div>
-              <strong><Bilingual tKey="nav.brand" /></strong>
-              <span>{bootstrap?.tenant?.name ?? t("common.loading")}</span>
-            </div>
-          </div>
+  const matterCtx = useMemo(() => {
+    if (!selectedMatterId) return null;
+    return {
+      matterId: selectedMatterId,
+      tenantId: bootstrap?.tenant?.id ?? "",
+      workspace,
+      refreshWorkspace,
+    };
+  }, [selectedMatterId, bootstrap?.tenant?.id, workspace, refreshWorkspace]);
 
-          <nav className="nav-tabs" aria-label={t("nav.workspace_sections")}>
-            {tabs.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.key}
-                  className={tab === item.key ? "active" : ""}
-                  onClick={() => {
-                    setTab(item.key);
-                    setNavOpen(false);
-                  }}
-                  type="button"
-                >
-                  <Icon aria-hidden="true" />
-                  <span><Bilingual tKey={item.labelKey} /></span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+  return (
+    <LanguageModeProvider mode={langMode} primaryLang={primaryLang} secondaryLang={secondaryLang}>
+      <main className={`app-shell ${sidebarCollapsed ? "app-shell--collapsed" : ""}`}>
+        <Sidebar
+          tenantName={bootstrap?.tenant?.name}
+          navOpen={navOpen}
+          onNavClose={() => setNavOpen(false)}
+        />
 
         <section className="workspace">
           <header className="topbar">
@@ -262,319 +315,90 @@ export function App() {
             <div>
               <h1>{selectedMatter?.title ?? t("nav.brand")}</h1>
               <div className="meta-row">
-                <span>{selectedMatter?.primaryJurisdictionCode ?? "EW"}</span>
+                <span>{selectedMatter?.primaryJurisdictionCode ?? "NG"}</span>
                 <span>{selectedMatter?.riskLevel ?? "medium"}</span>
                 <span>{selectedMatter?.status ?? "intake"}</span>
               </div>
             </div>
             <div className="topbar-actions">
+              {bootstrap && bootstrap.matters.length > 1 && (
+                <label>
+                  <FileText aria-hidden="true" />
+                  <select value={selectedMatterId ?? ""} onChange={(e) => switchMatter(e.target.value)}>
+                    {bootstrap.matters.map((m) => (
+                      <option key={m.id} value={m.id}>{m.title}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button type="button" onClick={() => setShowCreateMatter(true)}>
+                <Plus aria-hidden="true" size={16} />
+                {t("matters.create")}
+              </button>
               <label>
                 <Globe2 aria-hidden="true" />
-                <select value={locale} onChange={(event) => setLocale(event.target.value as "en-GB" | "pt-PT")}>
-                  <option value="en-GB">en-GB</option>
-                  <option value="pt-PT">pt-PT</option>
+                <select value={locale} onChange={(event) => setLocale(event.target.value as "en" | "fr" | "pt" | "es")}>
+                  <option value="en">English</option>
+                  <option value="fr">Français</option>
+                  <option value="pt">Português</option>
+                  <option value="es">Español</option>
                 </select>
               </label>
               <button type="button" onClick={load}>
                 <CheckCircle2 aria-hidden="true" />
-                <Bilingual tKey="common.refresh" variant="inline" />
+                <T k="common.refresh" variant="inline" />
               </button>
             </div>
           </header>
           {navOpen ? <button aria-label={t("nav.close_menu")} className="nav-backdrop" onClick={() => setNavOpen(false)} type="button" /> : null}
+
+          <Breadcrumbs />
 
           {status ? <div className="toast" role="status" aria-live="polite">{status}</div> : null}
 
           {loading ? <div className="loading-state" role="status">{t("status.loading_workspace")}</div> : null}
           {error ? <div className="error-state" role="alert">{t("common.error")}: {error} <button type="button" onClick={load}>{t("common.retry")}</button></div> : null}
 
-          {!loading && !error ? (
-            tab === "front" ? (
-              <FrontOffice workspace={workspace} intake={intake} onGenerateWill={generateWill} />
-            ) : tab === "middle" ? (
-              <MiddleOffice rules={rules} legalContent={legalContent} onRunRules={runRules} onCreateMemo={createMemo} />
-            ) : tab === "back" ? (
-              <BackOffice tables={tables} tableAreas={tableAreas} legalContent={legalContent} />
-            ) : tab === "api" ? (
-              <ApiSurface packs={bootstrap?.packs ?? []} onExport={exportBundle} />
-            ) : tab === "settings" ? (
-              <Settings
-                theme={theme}
-                language={secondaryLang}
-                onThemeChange={handleThemeChange}
-                onLanguageChange={handleLanguageChange}
-              />
-            ) : (
-              <Reports kpis={kpis} workspace={workspace} />
-            )
+          {!loading && !error && matterCtx ? (
+            <MatterContext.Provider value={matterCtx}>
+              {section === "settings" ? (
+                <Settings
+                  theme={theme}
+                  langMode={langMode}
+                  primaryLang={primaryLang}
+                  secondaryLang={secondaryLang}
+                  userRole={userRole}
+                  onThemeChange={handleThemeChange}
+                  onLangModeChange={handleLangModeChange}
+                  onPrimaryLangChange={handlePrimaryLangChange}
+                  onSecondaryLangChange={handleSecondaryLangChange}
+                  onUserRoleChange={setUserRole}
+                />
+              ) : (
+                <ContentRouter
+                  workspace={workspace}
+                  bootstrap={bootstrap}
+                  intake={intake}
+                  rules={rules}
+                  tables={tables}
+                  tableAreas={tableAreas}
+                  legalContent={legalContent}
+                  kpis={kpis}
+                  matterId={selectedMatterId}
+                  locale={locale}
+                  busy={busy}
+                  onRunRules={runRules}
+                  onCreateMemo={createMemo}
+                  onGenerateWill={generateWill}
+                  onExportBundle={exportBundle}
+                />
+              )}
+            </MatterContext.Provider>
           ) : null}
         </section>
       </main>
-    </SecondaryLanguageProvider>
-  );
-}
 
-function FrontOffice({
-  workspace,
-  intake,
-  onGenerateWill
-}: {
-  workspace: WorkspacePayload | null;
-  intake: IntakeResponse["intake"] | null;
-  onGenerateWill: () => void;
-}) {
-  return (
-    <div className="content-grid">
-      <section className="panel span-2">
-        <PanelHeader icon={Scale} titleKey="front.intake_score" action={<strong>{intake?.score ?? 0}%</strong>} />
-        <div className="progress"><span style={{ width: `${intake?.score ?? 0}%` }} /></div>
-        <div className="split-list">
-          <DataList
-            titleKey="front.people"
-            rows={(workspace?.people ?? []).map((person) => [person.legalName, person.domicileCountry ?? "domicile pending", person.preferredLanguage])}
-          />
-          <DataList
-            titleKey="front.assets"
-            rows={(workspace?.assets ?? []).map((asset) => [
-              asset.description,
-              `${asset.currency} ${asset.valuation.toLocaleString()}`,
-              asset.evidenceRefs.length ? "evidence linked" : "evidence missing"
-            ])}
-          />
-        </div>
-      </section>
-
-      <section className="panel">
-        <PanelHeader icon={FileText} titleKey="front.documents" action={<button onClick={onGenerateWill} type="button"><Bilingual tKey="common.generate" variant="inline" /></button>} />
-        <ul className="compact-list">
-          {(workspace?.documents ?? []).map((document) => (
-            <li key={document.id}>
-              <span>{document.title}</span>
-              <strong>{document.reviewStatus}</strong>
-            </li>
-          ))}
-          {!workspace?.documents.length ? <li><span><Bilingual tKey="front.no_drafts" /></span><strong>ready</strong></li> : null}
-        </ul>
-      </section>
-
-      <section className="panel">
-        <PanelHeader icon={Workflow} titleKey="front.reviews" />
-        <ul className="compact-list">
-          {(workspace?.reviews ?? []).slice(0, 6).map((review) => (
-            <li key={review.id}>
-              <span>{review.reviewType}</span>
-              <strong>{review.status}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function MiddleOffice({
-  rules,
-  legalContent,
-  onRunRules,
-  onCreateMemo
-}: {
-  rules: RulesResponse["summary"] | null;
-  legalContent: LegalContentResponse | null;
-  onRunRules: () => void;
-  onCreateMemo: () => void;
-}) {
-  return (
-    <div className="content-grid">
-      <section className="panel span-2">
-        <PanelHeader
-          icon={AlertTriangle}
-          titleKey="middle.rule_scan"
-          action={
-            <div className="button-row">
-              <button onClick={onRunRules} type="button"><Bilingual tKey="common.run_scan" variant="inline" /></button>
-              <button onClick={onCreateMemo} type="button"><Bilingual tKey="common.create_memo" variant="inline" /></button>
-            </div>
-          }
-        />
-        <ul className="issue-list">
-          {(rules?.issues ?? []).map((issue) => (
-            <li key={`${issue.code}-${issue.ruleCode}`} className={issue.severity}>
-              <strong>{issue.code}</strong>
-              <span>{issue.message}</span>
-              <em>{issue.ruleCode}</em>
-            </li>
-          ))}
-          {!rules?.issues.length ? <li><strong><Bilingual tKey="middle.no_current_scan" /></strong><span><Bilingual tKey="common.run_scan" /></span><em>pending</em></li> : null}
-        </ul>
-      </section>
-
-      <section className="panel">
-        <PanelHeader icon={Bot} titleKey="back.ai_monitors" />
-        <ul className="compact-list">
-          {(legalContent?.releaseGates ?? [])
-            .filter((gate) => gate.gateCode === "ai-safety")
-            .map((gate) => (
-              <li key={gate.id}>
-                <span>{gate.packId}</span>
-                <strong>{gate.status}</strong>
-              </li>
-            ))}
-        </ul>
-      </section>
-
-      <section className="panel">
-        <PanelHeader icon={Globe2} titleKey="middle.rules" />
-        <ul className="compact-list">
-          {(legalContent?.rules ?? []).slice(0, 7).map((rule) => (
-            <li key={rule.id}>
-              <span>{rule.ruleCode}</span>
-              <strong>{rule.severity}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function BackOffice({
-  tables,
-  tableAreas,
-  legalContent
-}: {
-  tables: TableCatalogResponse["tables"];
-  tableAreas: Record<string, number>;
-  legalContent: LegalContentResponse | null;
-}) {
-  return (
-    <div className="content-grid">
-      <section className="panel span-2">
-        <PanelHeader icon={TableProperties} titleKey="back.schema_tables" action={<strong>{tables.length}</strong>} />
-        <div className="metric-grid">
-          {Object.entries(tableAreas).map(([area, count]) => (
-            <div className="metric" key={area}>
-              <span>{area.replaceAll("_", " ")}</span>
-              <strong>{count}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <PanelHeader icon={ShieldCheck} titleKey="back.upl_opinions" />
-        <ul className="compact-list">
-          {(legalContent?.uplOpinions ?? []).map((opinion) => (
-            <li key={opinion.id}>
-              <span>{opinion.jurisdictionCode}</span>
-              <strong>{opinion.status}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="panel">
-        <PanelHeader icon={Workflow} titleKey="back.release_gates" />
-        <ul className="compact-list">
-          {(legalContent?.velocity ?? []).map((record) => (
-            <li key={record.id}>
-              <span>{record.packId}</span>
-              <strong>{record.status}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function ApiSurface({ packs, onExport }: { packs: BootstrapPayload["packs"]; onExport: () => void }) {
-  return (
-    <div className="content-grid">
-      <section className="panel span-2">
-        <PanelHeader icon={Download} titleKey="api.export_bundle" action={<button onClick={onExport} type="button"><Bilingual tKey="common.export" variant="inline" /></button>} />
-        <div className="endpoint-grid">
-          {["/api/planning/matters/{id}/rules/evaluate", "/api/planning/matters/{id}/documents/will", "/api/exports/matters/{id}", "/api/admin/packs"].map(
-            (endpoint) => (
-              <code key={endpoint}>{endpoint}</code>
-            )
-          )}
-        </div>
-      </section>
-      <section className="panel">
-        <PanelHeader icon={Globe2} titleKey="api.jurisdiction_packs" />
-        <ul className="compact-list">
-          {packs.map((pack) => (
-            <li key={pack.id}>
-              <span>{pack.jurisdictionCode}</span>
-              <strong>{pack.status}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function Reports({ kpis, workspace }: { kpis: KpiResponse["kpis"] | null; workspace: WorkspacePayload | null }) {
-  return (
-    <div className="content-grid">
-      <section className="panel span-2">
-        <PanelHeader icon={ShieldCheck} titleKey="reports.metrics" />
-        <div className="metric-grid">
-          <Metric labelKey="reports.tenants" value={kpis?.payingTenants ?? 0} />
-          <Metric labelKey="reports.packs" value={kpis?.activePacks ?? 0} />
-          <Metric labelKey="reports.density" value={kpis?.tenantDensityPerPack ?? 0} />
-          <Metric labelKey="reports.wills" value={kpis?.finalizedWills ?? 0} />
-          <Metric labelKey="reports.ai_grounding" value={`${kpis?.aiGroundingRate ?? 0}%`} />
-          <Metric labelKey="reports.security_incidents" value={kpis?.materialSecurityIncidents ?? 0} />
-        </div>
-      </section>
-      <section className="panel">
-        <PanelHeader icon={CheckCircle2} titleKey="reports.audit_trail" />
-        <ul className="compact-list">
-          {(workspace?.auditEvents ?? []).slice(0, 8).map((event) => (
-            <li key={event.id}>
-              <span>{event.eventType}</span>
-              <strong>{event.actorRole}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function PanelHeader({ icon: Icon, titleKey, action }: { icon: typeof Scale; titleKey: string; action?: React.ReactNode }) {
-  return (
-    <div className="panel-header">
-      <h2><Icon aria-hidden="true" /><Bilingual tKey={titleKey} /></h2>
-      {action}
-    </div>
-  );
-}
-
-function DataList({ titleKey, rows }: { titleKey: string; rows: string[][] }) {
-  return (
-    <div>
-      <h3><Bilingual tKey={titleKey} /></h3>
-      <ul className="compact-list">
-        {rows.map((row) => (
-          <li key={row.join("-")}>
-            <span>{row[0]}</span>
-            <strong>{row[1]}</strong>
-            <em>{row[2]}</em>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function Metric({ labelKey, value }: { labelKey: string; value: string | number }) {
-  return (
-    <div className="metric">
-      <span><Bilingual tKey={labelKey} /></span>
-      <strong>{value}</strong>
-    </div>
+      <MatterCreateForm open={showCreateMatter} onClose={() => setShowCreateMatter(false)} onCreated={load} />
+    </LanguageModeProvider>
   );
 }
