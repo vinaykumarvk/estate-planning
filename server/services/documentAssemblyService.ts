@@ -6,6 +6,7 @@ import { lintDocumentGlossary } from "./localizationService";
 import { evaluateMatterRules } from "./ruleEngine";
 import { audit } from "./auditService";
 import { generateEstatePlanningReview } from "./estatePlanningReviewService";
+import { t } from "./pdfTranslations";
 
 function evaluateClauseCondition(condition: string | null, context: Record<string, boolean>): boolean {
   if (!condition) return true;
@@ -147,118 +148,478 @@ export async function generateWillDraft(matterId: string, locale?: string): Prom
   };
 }
 
-const estateDocumentTitles: Record<EstatePlanningDocumentType, string> = {
-  estate_planning_summary: "Estate Planning Summary Report",
-  protection_review_letter: "Protection Review Letter",
-  incapacity_instruction: "Incapacity Planning Instructions",
-  trust_memo: "Trust Planning Memorandum",
-  deed_of_variation_instruction: "Deed of Variation Instructions",
-  cross_border_tax_note: "Cross-Border Tax Position Note"
-};
+// ---------------------------------------------------------------------------
+// Document context & helpers
+// ---------------------------------------------------------------------------
+
+interface DocumentContext {
+  locale: string;
+  review: EstatePlanningReview;
+  matter: { id: string; tenantId: string; primaryJurisdictionCode: string; title?: string | null };
+  people: Array<{ legalName: string; dateOfBirth: Date | null; nationality: string | null; domicileCountry: string | null; maritalStatus: string | null }>;
+  assets: Array<{ description: string; assetClass: string; situsCountry: string | null; currency: string; valuation: number }>;
+  liabilities: Array<{ description: string; liabilityType: string; currency: string; amount: number }>;
+  wills: Array<{ jurisdictionCode: string; status: string; dateExecuted: Date | null; documentType: string }>;
+  goals: Array<{ goalText: string; category: string; priority: string; status: string }>;
+  ihtCalcs: Array<{ netEstate: number; taxableEstate: number; ihtDue: number; nrb: number; rnrb: number; transferableNrb: number; charitableRate: boolean; taperRelief: number }>;
+  domicileRecs: Array<{ domicileOfOrigin: string | null; domicileOfChoice: string | null; snapBackRisk: boolean; snapBackReason: string | null; dateEstablished: Date | null }>;
+}
+
+function fmtCurrency(value: number, currency: string, locale: string): string {
+  const localeMap: Record<string, string> = { en: "en-GB", fr: "fr-FR", pt: "pt-BR", es: "es-ES" };
+  const lang = locale.slice(0, 2).toLowerCase();
+  try {
+    return new Intl.NumberFormat(localeMap[lang] ?? "en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+  } catch {
+    return `${currency} ${value.toLocaleString()}`;
+  }
+}
+
+function fmtDate(date: Date | null | undefined, locale: string): string {
+  if (!date) return "—";
+  const localeMap: Record<string, string> = { en: "en-GB", fr: "fr-FR", pt: "pt-BR", es: "es-ES" };
+  const lang = locale.slice(0, 2).toLowerCase();
+  return new Intl.DateTimeFormat(localeMap[lang] ?? "en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(date));
+}
+
+function interpolate(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ""));
+}
+
+function pad(text: string, width: number): string {
+  return text.length >= width ? text : text + " ".repeat(width - text.length);
+}
+
+const RULE = "\u2550".repeat(55);
+const THIN_RULE = "\u2500".repeat(55);
+
+function sectionHead(title: string): string {
+  return `\n\u2500\u2500\u2500 ${title} \u2500\u2500\u2500\n`;
+}
+
+function getEstateDocumentTitle(documentType: EstatePlanningDocumentType, locale: string): string {
+  return t(locale, `doc.title.${documentType}`);
+}
+
+// ---------------------------------------------------------------------------
+// Header block (shared across all document types)
+// ---------------------------------------------------------------------------
+
+function buildHeader(ctx: DocumentContext, documentType: EstatePlanningDocumentType): string[] {
+  const l = ctx.locale;
+  const title = getEstateDocumentTitle(documentType, l);
+  const clientName = ctx.people[0]?.legalName ?? ctx.matter.title ?? "—";
+  return [
+    RULE,
+    `  ${title}`,
+    `  ${t(l, "doc.label.confidential")}`,
+    RULE,
+    "",
+    `${t(l, "doc.label.prepared_for")}: ${clientName}`,
+    `${t(l, "doc.label.matter_ref")}: ${ctx.matter.id}`,
+    `${t(l, "doc.label.date")}: ${fmtDate(ctx.review.generatedAt, l)}`,
+    "",
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Reusable content blocks
+// ---------------------------------------------------------------------------
+
+function buildClientProfile(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const lines: string[] = [sectionHead(t(l, "doc.section.client_profile"))];
+  lines.push(`  ${pad(t(l, "report.name"), 20)}${pad(t(l, "report.dob"), 14)}${pad(t(l, "report.nationality"), 14)}${t(l, "report.domicile_risk").split(" ")[0]}`);
+  for (const p of ctx.people) {
+    lines.push(`  ${pad(p.legalName, 20)}${pad(fmtDate(p.dateOfBirth, l), 14)}${pad(p.nationality ?? "—", 14)}${p.domicileCountry ?? "—"}`);
+  }
+  return lines;
+}
+
+function buildAssetOverview(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const cur = ctx.assets[0]?.currency ?? "GBP";
+  const lines: string[] = [sectionHead(t(l, "doc.section.asset_overview"))];
+  lines.push(`  ${pad(t(l, "report.description"), 25)}${pad(t(l, "report.type"), 14)}${pad(t(l, "report.jurisdiction"), 10)}${t(l, "report.value")}`);
+  for (const a of ctx.assets) {
+    lines.push(`  ${pad(a.description.slice(0, 24), 25)}${pad(a.assetClass, 14)}${pad(a.situsCountry ?? "—", 10)}${fmtCurrency(a.valuation, a.currency, l)}`);
+  }
+  const totalAssets = ctx.assets.reduce((s, a) => s + a.valuation, 0);
+  const totalLiabilities = ctx.liabilities.reduce((s, li) => s + li.amount, 0);
+  lines.push(`  ${THIN_RULE.slice(0, 50)}`);
+  lines.push(`  ${pad(t(l, "doc.label.total_assets") + ":", 49)}${fmtCurrency(totalAssets, cur, l)}`);
+
+  if (ctx.liabilities.length > 0) {
+    lines.push("");
+    lines.push(sectionHead(t(l, "doc.section.liability_overview")));
+    for (const li of ctx.liabilities) {
+      lines.push(`  ${pad(li.description.slice(0, 24), 25)}${pad(li.liabilityType, 14)}${fmtCurrency(li.amount, li.currency, l)}`);
+    }
+    lines.push(`  ${THIN_RULE.slice(0, 50)}`);
+    lines.push(`  ${pad(t(l, "doc.label.total_liabilities") + ":", 49)}${fmtCurrency(totalLiabilities, cur, l)}`);
+  }
+
+  lines.push(`  ${pad(t(l, "doc.label.net_worth") + ":", 49)}${fmtCurrency(totalAssets - totalLiabilities, cur, l)}`);
+  return lines;
+}
+
+function buildFundingSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const cur = ctx.assets[0]?.currency ?? "GBP";
+  const liq = ctx.review.summaries.liquidity;
+  return [
+    sectionHead(t(l, "doc.section.funding_liquidity")),
+    interpolate(t(l, "doc.narrative.funding_assessment"), {
+      liquidAssets: fmtCurrency(liq.liquidAssets, cur, l),
+      ihtDue: fmtCurrency(liq.latestIhtDue, cur, l),
+      protectionCover: fmtCurrency(liq.availableProtectionCover, cur, l),
+      fundingGap: fmtCurrency(liq.fundingGap, cur, l),
+    }),
+    "",
+    `  ${pad(t(l, "doc.label.liquid_assets") + ":", 40)}${fmtCurrency(liq.liquidAssets, cur, l)}`,
+    `  ${pad(t(l, "doc.label.latest_iht_due") + ":", 40)}${fmtCurrency(liq.latestIhtDue, cur, l)}`,
+    `  ${pad(t(l, "doc.label.available_protection_cover") + ":", 40)}${fmtCurrency(liq.availableProtectionCover, cur, l)}`,
+    `  ${pad(t(l, "doc.label.funding_gap") + ":", 40)}${fmtCurrency(liq.fundingGap, cur, l)}`,
+  ];
+}
+
+function buildCashFlowSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const cur = ctx.assets[0]?.currency ?? "GBP";
+  const cf = ctx.review.summaries.cashFlow;
+  return [
+    sectionHead(t(l, "doc.section.cash_flow")),
+    interpolate(t(l, "doc.narrative.cash_flow_assessment"), {
+      annualIncome: fmtCurrency(cf.annualIncome, cur, l),
+      annualExpenses: fmtCurrency(cf.annualExpenses, cur, l),
+      annualSurplus: fmtCurrency(cf.annualSurplus, cur, l),
+    }),
+    "",
+    `  ${pad(t(l, "doc.label.annual_income") + ":", 30)}${fmtCurrency(cf.annualIncome, cur, l)}`,
+    `  ${pad(t(l, "doc.label.annual_expenses") + ":", 30)}${fmtCurrency(cf.annualExpenses, cur, l)}`,
+    `  ${pad(t(l, "doc.label.annual_surplus") + ":", 30)}${fmtCurrency(cf.annualSurplus, cur, l)}`,
+  ];
+}
+
+function buildProtectionSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const cur = ctx.assets[0]?.currency ?? "GBP";
+  const prot = ctx.review.summaries.protection;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  return [
+    sectionHead(t(l, "doc.section.protection_review")),
+    interpolate(t(l, "doc.narrative.protection_intro"), {
+      clientName,
+      totalCover: fmtCurrency(prot.totalCover, cur, l),
+      coverOutsideEstate: fmtCurrency(prot.coverOutsideEstate, cur, l),
+    }),
+    "",
+    `  ${pad(t(l, "doc.label.total_cover") + ":", 40)}${fmtCurrency(prot.totalCover, cur, l)}`,
+    `  ${pad(t(l, "doc.label.cover_outside_estate") + ":", 40)}${fmtCurrency(prot.coverOutsideEstate, cur, l)}`,
+    `  ${pad(t(l, "doc.label.policies_missing_trust") + ":", 40)}${prot.policiesMissingTrust}`,
+    `  ${pad(t(l, "doc.label.protection_gap") + ":", 40)}${fmtCurrency(prot.protectionGap, cur, l)}`,
+    "",
+    interpolate(t(l, "doc.narrative.protection_gap"), {
+      policiesMissingTrust: String(prot.policiesMissingTrust),
+      protectionGap: fmtCurrency(prot.protectionGap, cur, l),
+    }),
+  ];
+}
+
+function buildIhtSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const cur = ctx.assets[0]?.currency ?? "GBP";
+  if (ctx.ihtCalcs.length === 0) return [];
+  const calc = ctx.ihtCalcs[0];
+  return [
+    sectionHead(t(l, "doc.section.iht_analysis")),
+    `  ${pad(t(l, "doc.label.net_estate") + ":", 40)}${fmtCurrency(calc.netEstate, cur, l)}`,
+    `  ${pad(t(l, "doc.label.nrb") + ":", 40)}${fmtCurrency(calc.nrb, cur, l)}`,
+    `  ${pad(t(l, "doc.label.rnrb") + ":", 40)}${fmtCurrency(calc.rnrb, cur, l)}`,
+    `  ${pad(t(l, "doc.label.transferable_nrb") + ":", 40)}${fmtCurrency(calc.transferableNrb, cur, l)}`,
+    `  ${pad(t(l, "doc.label.taxable_estate") + ":", 40)}${fmtCurrency(calc.taxableEstate, cur, l)}`,
+    `  ${pad(t(l, "doc.label.iht_due") + ":", 40)}${fmtCurrency(calc.ihtDue, cur, l)}`,
+    `  ${pad(t(l, "doc.label.charitable_rate") + ":", 40)}${calc.charitableRate ? t(l, "common.yes") : t(l, "common.no")}`,
+    `  ${pad(t(l, "doc.label.taper_relief") + ":", 40)}${fmtCurrency(calc.taperRelief, cur, l)}`,
+  ];
+}
+
+function buildWillSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  if (ctx.wills.length === 0) return [];
+  const lines: string[] = [sectionHead(t(l, "doc.section.will_coordination"))];
+  lines.push(`  ${pad(t(l, "report.jurisdiction"), 14)}${pad(t(l, "report.type"), 18)}${pad(t(l, "report.status"), 12)}${t(l, "report.date")}`);
+  for (const w of ctx.wills) {
+    lines.push(`  ${pad(w.jurisdictionCode, 14)}${pad(w.documentType, 18)}${pad(w.status, 12)}${fmtDate(w.dateExecuted, l)}`);
+  }
+  return lines;
+}
+
+function buildGoalsSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const lines: string[] = [sectionHead(t(l, "doc.section.goals_recommendations"))];
+  if (ctx.goals.length === 0) return lines;
+  ctx.goals.forEach((g, i) => {
+    const status = t(l, `doc.status.${g.status}`) || g.status;
+    lines.push(`  ${i + 1}. ${g.goalText} \u2014 ${g.category} \u2014 ${g.priority} \u2014 ${status}`);
+  });
+  return lines;
+}
+
+function buildActionsSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const openGaps = ctx.review.requirements.filter((r) => r.status === "gap");
+  const partials = ctx.review.requirements.filter((r) => r.status === "partial");
+  const blockerGaps = openGaps.filter((r) => r.severity === "blocker");
+  const sorted = [...blockerGaps, ...openGaps.filter((g) => g.severity !== "blocker"), ...partials];
+
+  const lines: string[] = [sectionHead(t(l, "doc.section.open_actions"))];
+  if (sorted.length === 0) {
+    lines.push(t(l, "doc.narrative.no_open_actions"));
+  } else {
+    sorted.forEach((r, i) => {
+      const severity = t(l, `doc.status.${r.severity}`) || r.severity;
+      lines.push(`  ${i + 1}. [${r.code}] (${r.area}) ${r.gap ?? r.recommendedAction ?? r.requirement}  [${severity}]`);
+    });
+  }
+  return lines;
+}
+
+function buildDomicileSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  if (ctx.domicileRecs.length === 0) return [];
+  const lines: string[] = [sectionHead(t(l, "doc.section.domicile_analysis"))];
+  for (const d of ctx.domicileRecs) {
+    lines.push(`  ${pad(t(l, "doc.label.domicile_origin") + ":", 30)}${d.domicileOfOrigin ?? "—"}`);
+    lines.push(`  ${pad(t(l, "doc.label.domicile_choice") + ":", 30)}${d.domicileOfChoice ?? "—"}`);
+    lines.push(`  ${pad(t(l, "doc.label.snap_back_risk") + ":", 30)}${d.snapBackRisk ? t(l, "common.yes") : t(l, "common.no")}${d.snapBackReason ? ` (${d.snapBackReason})` : ""}`);
+    lines.push(`  ${pad(t(l, "doc.label.date_established") + ":", 30)}${fmtDate(d.dateEstablished, l)}`);
+    lines.push("");
+  }
+  return lines;
+}
+
+function buildCrossBorderSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  const cb = ctx.review.summaries.crossBorderTax;
+  const lines: string[] = [sectionHead(t(l, "doc.section.cross_border_tax"))];
+  lines.push(`  ${pad(t(l, "doc.label.countries") + ":", 30)}${cb.countries.join(", ") || "—"}`);
+  lines.push(`  ${pad(t(l, "doc.label.unresolved_pairs") + ":", 30)}${cb.unresolvedPairs.join(", ") || "—"}`);
+  if (cb.dtaPositions.length > 0) {
+    lines.push("");
+    for (const dta of cb.dtaPositions) {
+      lines.push(`  ${dta.countryA}\u2013${dta.countryB}: ${dta.reliefType} (${dta.status})`);
+    }
+  }
+  return lines;
+}
+
+function buildDisclaimerSection(ctx: DocumentContext): string[] {
+  const l = ctx.locale;
+  return [
+    sectionHead(t(l, "doc.section.disclaimer")),
+    t(l, "doc.narrative.disclaimer_text"),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Per-document-type builders
+// ---------------------------------------------------------------------------
+
+function buildEstatePlanningSummary(ctx: DocumentContext): string {
+  const l = ctx.locale;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  return [
+    ...buildHeader(ctx, "estate_planning_summary"),
+    sectionHead(t(l, "doc.section.executive_summary")),
+    interpolate(t(l, "doc.narrative.summary_intro"), { clientName }),
+    "",
+    interpolate(t(l, "doc.narrative.fitment_overview"), {
+      fitmentPercent: ctx.review.fitmentPercent,
+      totalRequirements: ctx.review.applicableRequirementCount,
+      metCount: ctx.review.metRequirementCount,
+      partialCount: ctx.review.partialRequirementCount,
+      gapCount: ctx.review.gapRequirementCount,
+      blockerCount: ctx.review.blockerCount,
+    }),
+    "",
+    ...buildClientProfile(ctx),
+    "",
+    ...buildAssetOverview(ctx),
+    "",
+    ...buildFundingSection(ctx),
+    "",
+    ...buildCashFlowSection(ctx),
+    "",
+    ...buildProtectionSection(ctx),
+    "",
+    ...buildIhtSection(ctx),
+    "",
+    ...buildWillSection(ctx),
+    "",
+    ...buildCrossBorderSection(ctx),
+    "",
+    ...buildGoalsSection(ctx),
+    "",
+    ...buildActionsSection(ctx),
+    "",
+    ...buildDisclaimerSection(ctx),
+  ].join("\n");
+}
+
+function buildProtectionReviewLetter(ctx: DocumentContext): string {
+  const l = ctx.locale;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  const cur = ctx.assets[0]?.currency ?? "GBP";
+  const prot = ctx.review.summaries.protection;
+  return [
+    ...buildHeader(ctx, "protection_review_letter"),
+    sectionHead(t(l, "doc.section.executive_summary")),
+    interpolate(t(l, "doc.narrative.protection_intro"), {
+      clientName,
+      totalCover: fmtCurrency(prot.totalCover, cur, l),
+      coverOutsideEstate: fmtCurrency(prot.coverOutsideEstate, cur, l),
+    }),
+    "",
+    ...buildClientProfile(ctx),
+    "",
+    ...buildProtectionSection(ctx),
+    "",
+    ...buildFundingSection(ctx),
+    "",
+    ...buildGoalsSection(ctx),
+    "",
+    ...buildActionsSection(ctx),
+    "",
+    ...buildDisclaimerSection(ctx),
+  ].join("\n");
+}
+
+function buildIncapacityInstruction(ctx: DocumentContext): string {
+  const l = ctx.locale;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  const incapReqs = ctx.review.requirements.filter((r) => r.area === "Incapacity");
+  return [
+    ...buildHeader(ctx, "incapacity_instruction"),
+    sectionHead(t(l, "doc.section.executive_summary")),
+    interpolate(t(l, "doc.narrative.incapacity_intro"), { clientName }),
+    "",
+    ...buildClientProfile(ctx),
+    "",
+    sectionHead(t(l, "doc.section.incapacity_planning")),
+    ...incapReqs.map((r) => {
+      const status = t(l, `doc.status.${r.status}`) || r.status;
+      return `  [${r.code}] ${status}: ${r.gap ?? r.recommendedAction ?? r.requirement}`;
+    }),
+    ...(incapReqs.length === 0 ? [t(l, "doc.narrative.no_open_actions")] : []),
+    "",
+    ...buildActionsSection(ctx),
+    "",
+    ...buildDisclaimerSection(ctx),
+  ].join("\n");
+}
+
+function buildTrustMemo(ctx: DocumentContext): string {
+  const l = ctx.locale;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  const trustReqs = ctx.review.requirements.filter((r) => r.area === "Trusts" || r.area === "Outside-estate assets");
+  return [
+    ...buildHeader(ctx, "trust_memo"),
+    sectionHead(t(l, "doc.section.executive_summary")),
+    interpolate(t(l, "doc.narrative.trust_intro"), { clientName }),
+    "",
+    ...buildClientProfile(ctx),
+    "",
+    sectionHead(t(l, "doc.section.trust_planning")),
+    ...trustReqs.map((r) => {
+      const status = t(l, `doc.status.${r.status}`) || r.status;
+      return `  [${r.code}] ${status}: ${r.gap ?? r.recommendedAction ?? r.requirement}`;
+    }),
+    ...(trustReqs.length === 0 ? [t(l, "doc.narrative.no_open_actions")] : []),
+    "",
+    ...buildAssetOverview(ctx),
+    "",
+    ...buildIhtSection(ctx),
+    "",
+    ...buildActionsSection(ctx),
+    "",
+    ...buildDisclaimerSection(ctx),
+  ].join("\n");
+}
+
+function buildDeedOfVariation(ctx: DocumentContext): string {
+  const l = ctx.locale;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  const reliefReqs = ctx.review.requirements.filter((r) => r.area === "Estate reliefs" || r.area === "Lifetime gifts");
+  return [
+    ...buildHeader(ctx, "deed_of_variation_instruction"),
+    sectionHead(t(l, "doc.section.executive_summary")),
+    interpolate(t(l, "doc.narrative.deed_intro"), { clientName }),
+    "",
+    ...buildClientProfile(ctx),
+    "",
+    sectionHead(t(l, "doc.section.estate_reliefs")),
+    ...reliefReqs.map((r) => {
+      const status = t(l, `doc.status.${r.status}`) || r.status;
+      return `  [${r.code}] ${status}: ${r.gap ?? r.recommendedAction ?? r.requirement}`;
+    }),
+    ...(reliefReqs.length === 0 ? [t(l, "doc.narrative.no_open_actions")] : []),
+    "",
+    ...buildIhtSection(ctx),
+    "",
+    ...buildActionsSection(ctx),
+    "",
+    ...buildDisclaimerSection(ctx),
+  ].join("\n");
+}
+
+function buildCrossBorderTaxNote(ctx: DocumentContext): string {
+  const l = ctx.locale;
+  const clientName = ctx.people[0]?.legalName ?? "—";
+  const cb = ctx.review.summaries.crossBorderTax;
+  return [
+    ...buildHeader(ctx, "cross_border_tax_note"),
+    sectionHead(t(l, "doc.section.executive_summary")),
+    interpolate(t(l, "doc.narrative.cross_border_intro"), {
+      clientName,
+      countryCount: cb.countries.length,
+    }),
+    "",
+    ...buildClientProfile(ctx),
+    "",
+    ...buildCrossBorderSection(ctx),
+    "",
+    ...buildDomicileSection(ctx),
+    "",
+    ...buildIhtSection(ctx),
+    "",
+    ...buildActionsSection(ctx),
+    "",
+    ...buildDisclaimerSection(ctx),
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export function buildEstatePlanningDocumentContent(
   documentType: EstatePlanningDocumentType,
-  review: EstatePlanningReview
+  ctx: DocumentContext
 ): string {
-  const openGaps = review.requirements.filter((requirement) => requirement.status === "gap");
-  const partials = review.requirements.filter((requirement) => requirement.status === "partial");
-  const blockerGaps = openGaps.filter((requirement) => requirement.severity === "blocker");
-  const heading = estateDocumentTitles[documentType];
-
-  const baseSections = [
-    heading,
-    "",
-    `Matter: ${review.matterId}`,
-    `Generated: ${review.generatedAt.toISOString()}`,
-    `Core estate fitment: ${review.fitmentPercent}%`,
-    `Met: ${review.metRequirementCount}; Partial: ${review.partialRequirementCount}; Gaps: ${review.gapRequirementCount}; Blockers: ${review.blockerCount}`,
-    "",
-  ];
-
-  const fundingSection = [
-    "Funding and liquidity",
-    `Liquid assets: ${review.summaries.liquidity.liquidAssets}`,
-    `Latest IHT due: ${review.summaries.liquidity.latestIhtDue}`,
-    `Protection cover outside estate: ${review.summaries.liquidity.availableProtectionCover}`,
-    `Funding gap: ${review.summaries.liquidity.fundingGap}`,
-    ""
-  ];
-
-  const actionSection = [
-    "Open professional actions",
-    ...[...blockerGaps, ...openGaps.filter((gap) => gap.severity !== "blocker"), ...partials].map((requirement) =>
-      `${requirement.code} (${requirement.area}): ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`
-    ),
-    blockerGaps.length === 0 && openGaps.length === 0 && partials.length === 0 ? "No open estate-planning gaps recorded." : "",
-    ""
-  ];
-
   switch (documentType) {
     case "estate_planning_summary":
-      return [
-        ...baseSections,
-        ...fundingSection,
-        "Cash flow",
-        `Annual income: ${review.summaries.cashFlow.annualIncome}`,
-        `Annual expenses: ${review.summaries.cashFlow.annualExpenses}`,
-        `Annual surplus: ${review.summaries.cashFlow.annualSurplus}`,
-        "",
-        "Cross-border tax",
-        `Countries: ${review.summaries.crossBorderTax.countries.join(", ") || "None recorded"}`,
-        `Unresolved pairs: ${review.summaries.crossBorderTax.unresolvedPairs.join(", ") || "None"}`,
-        "",
-        ...actionSection
-      ].join("\n");
+      return buildEstatePlanningSummary(ctx);
     case "protection_review_letter":
-      return [
-        ...baseSections,
-        "Protection review",
-        `Total cover: ${review.summaries.protection.totalCover}`,
-        `Cover outside estate: ${review.summaries.protection.coverOutsideEstate}`,
-        `Policies missing trust review: ${review.summaries.protection.policiesMissingTrust}`,
-        `Protection gap: ${review.summaries.protection.protectionGap}`,
-        "",
-        ...actionSection
-      ].join("\n");
+      return buildProtectionReviewLetter(ctx);
     case "incapacity_instruction":
-      return [
-        ...baseSections,
-        "Incapacity planning",
-        ...review.requirements
-          .filter((requirement) => requirement.area === "Incapacity")
-          .map((requirement) => `${requirement.status}: ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`),
-        "",
-        ...actionSection
-      ].join("\n");
+      return buildIncapacityInstruction(ctx);
     case "trust_memo":
-      return [
-        ...baseSections,
-        "Trust planning",
-        ...review.requirements
-          .filter((requirement) => requirement.area === "Trusts" || requirement.area === "Outside-estate assets")
-          .map((requirement) => `${requirement.code}: ${requirement.status} - ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`),
-        "",
-        ...actionSection
-      ].join("\n");
+      return buildTrustMemo(ctx);
     case "deed_of_variation_instruction":
-      return [
-        ...baseSections,
-        "Estate reliefs",
-        ...review.requirements
-          .filter((requirement) => requirement.area === "Estate reliefs" || requirement.area === "Lifetime gifts")
-          .map((requirement) => `${requirement.code}: ${requirement.status} - ${requirement.gap ?? requirement.recommendedAction ?? requirement.requirement}`),
-        "",
-        ...actionSection
-      ].join("\n");
+      return buildDeedOfVariation(ctx);
     case "cross_border_tax_note":
-      return [
-        ...baseSections,
-        "Cross-border tax",
-        `Countries: ${review.summaries.crossBorderTax.countries.join(", ") || "None recorded"}`,
-        `Unresolved DTA/no-DTA pairs: ${review.summaries.crossBorderTax.unresolvedPairs.join(", ") || "None"}`,
-        "",
-        ...actionSection
-      ].join("\n");
+      return buildCrossBorderTaxNote(ctx);
   }
 }
 
@@ -268,9 +629,35 @@ export async function generateEstatePlanningDocument(
   locale?: string
 ): Promise<DocumentDraftResult> {
   const matter = await prisma.matter.findUniqueOrThrow({ where: { id: matterId } });
-  const review = await generateEstatePlanningReview(matterId, matter.tenantId);
-  const content = buildEstatePlanningDocumentContent(documentType, review);
-  const title = estateDocumentTitles[documentType];
+  const selectedLocale = locale ?? matter.languageOfRecord;
+
+  const [review, people, assets, liabilities, wills, goals, ihtCalcs, domicileRecs] =
+    await Promise.all([
+      generateEstatePlanningReview(matterId, matter.tenantId),
+      prisma.person.findMany({ where: { matterId } }),
+      prisma.asset.findMany({ where: { matterId } }),
+      prisma.liability.findMany({ where: { matterId } }),
+      prisma.willCoordination.findMany({ where: { matterId } }),
+      prisma.clientGoal.findMany({ where: { matterId } }),
+      prisma.ihtCalculation.findMany({ where: { matterId } }),
+      prisma.domicileRecord.findMany({ where: { tenantId: matter.tenantId } }),
+    ]);
+
+  const ctx: DocumentContext = {
+    locale: selectedLocale,
+    review,
+    matter: { id: matter.id, tenantId: matter.tenantId, primaryJurisdictionCode: matter.primaryJurisdictionCode, title: matter.title },
+    people,
+    assets,
+    liabilities,
+    wills,
+    goals,
+    ihtCalcs,
+    domicileRecs,
+  };
+
+  const content = buildEstatePlanningDocumentContent(documentType, ctx);
+  const title = getEstateDocumentTitle(documentType, selectedLocale);
   const hash = stableHash({ matterId, documentType, content, generatedAt: review.generatedAt.toISOString() });
   const pendingReview = review.blockerCount > 0 || review.gapRequirementCount > 0;
 
@@ -280,7 +667,7 @@ export async function generateEstatePlanningDocument(
       matterId,
       documentType,
       jurisdictionCode: matter.primaryJurisdictionCode,
-      locale: locale ?? matter.languageOfRecord,
+      locale: selectedLocale,
       status: "draft",
       version: "1.0",
       title,

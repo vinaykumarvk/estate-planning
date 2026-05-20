@@ -212,6 +212,36 @@ function renderSection(section: NavSection, subPage: string, props: ContentRoute
 
 // ==================== SECTION COMPONENTS ====================
 
+// ----- Dashboard document panel (clickable items) -----
+function DashboardDocumentsPanel({ props }: { props: ContentRouterProps }) {
+  const { navigateTo } = useNavigation();
+  return (
+    <section className="panel">
+      <PanelHeader icon={FileText} titleKey="front.documents" action={
+        <div className="button-row">
+          {props.matterId && (
+            <button type="button" onClick={() => window.open(`/api/reports/matters/${props.matterId}/report/pdf?locale=${i18n.language}`, "_blank")}>
+              <Download aria-hidden="true" size={14} /> <T k="common.download_report" variant="inline" />
+            </button>
+          )}
+        </div>
+      } />
+      <ul className="compact-list">
+        {(props.workspace?.documents ?? []).map((document) => (
+          <li key={document.id} className="doc-row">
+            <button type="button" className="doc-row__link" onClick={() => navigateTo("documents", "assembly")}>
+              <FileText size={14} aria-hidden="true" />
+              <span>{document.title}</span>
+            </button>
+            <strong>{document.reviewStatus}</strong>
+          </li>
+        ))}
+        {!props.workspace?.documents.length ? <li><span><T k="front.no_drafts" /></span><strong>ready</strong></li> : null}
+      </ul>
+    </section>
+  );
+}
+
 // ----- Dashboard -----
 function DashboardSection({ subPage, props }: { subPage: string; props: ContentRouterProps }) {
   if (subPage === "activity") {
@@ -266,26 +296,7 @@ function DashboardSection({ subPage, props }: { subPage: string; props: ContentR
         </div>
       </section>
 
-      <section className="panel">
-        <PanelHeader icon={FileText} titleKey="front.documents" action={
-          <div className="button-row">
-            {props.matterId && (
-              <button type="button" onClick={() => window.open(`/api/reports/matters/${props.matterId}/report/pdf?locale=${i18n.language}`, "_blank")}>
-                <Download aria-hidden="true" size={14} /> <T k="common.download_report" variant="inline" />
-              </button>
-            )}
-          </div>
-        } />
-        <ul className="compact-list">
-          {(props.workspace?.documents ?? []).map((document) => (
-            <li key={document.id}>
-              <span>{document.title}</span>
-              <strong>{document.reviewStatus}</strong>
-            </li>
-          ))}
-          {!props.workspace?.documents.length ? <li><span><T k="front.no_drafts" /></span><strong>ready</strong></li> : null}
-        </ul>
-      </section>
+      <DashboardDocumentsPanel props={props} />
 
       <section className="panel">
         <PanelHeader icon={Workflow} titleKey="front.reviews" />

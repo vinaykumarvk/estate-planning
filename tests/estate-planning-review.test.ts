@@ -195,11 +195,24 @@ describe("core estate planning remediation review", () => {
   });
 
   it("builds estate planning document content from the fitment review", () => {
-    const review = buildEstatePlanningReview(completeFacts());
-    const content = buildEstatePlanningDocumentContent("estate_planning_summary", review);
+    const facts = completeFacts();
+    const review = buildEstatePlanningReview(facts);
+    const ctx = {
+      locale: "en",
+      review,
+      matter: { id: facts.matter.id, tenantId: "tenant-1", primaryJurisdictionCode: facts.matter.primaryJurisdictionCode },
+      people: facts.people.map((p) => ({ legalName: p.legalName, dateOfBirth: p.dateOfBirth, nationality: null, domicileCountry: p.domicileCountry, maritalStatus: null })),
+      assets: facts.assets.map((a) => ({ description: a.description, assetClass: a.assetClass, situsCountry: a.situsCountry, currency: a.currency, valuation: a.valuation })),
+      liabilities: facts.liabilities.map((l) => ({ description: "Liability", liabilityType: "loan", currency: l.currency, amount: l.amount })),
+      wills: [] as Array<{ jurisdictionCode: string; status: string; dateExecuted: Date | null; documentType: string }>,
+      goals: [] as Array<{ goalText: string; category: string; priority: string; status: string }>,
+      ihtCalcs: [] as Array<{ netEstate: number; taxableEstate: number; ihtDue: number; nrb: number; rnrb: number; transferableNrb: number; charitableRate: boolean; taperRelief: number }>,
+      domicileRecs: [] as Array<{ domicileOfOrigin: string | null; domicileOfChoice: string | null; snapBackRisk: boolean; snapBackReason: string | null; dateEstablished: Date | null }>,
+    };
+    const content = buildEstatePlanningDocumentContent("estate_planning_summary", ctx);
 
     expect(content).toContain("Estate Planning Summary Report");
-    expect(content).toContain("Core estate fitment: 100%");
-    expect(content).toContain("Funding and liquidity");
+    expect(content).toContain("fitment score is 100%");
+    expect(content).toContain("Funding");
   });
 });
