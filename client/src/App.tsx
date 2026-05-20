@@ -87,7 +87,7 @@ function AppInner() {
   const [tables, setTables] = useState<TableCatalogResponse["tables"]>([]);
   const [legalContent, setLegalContent] = useState<LegalContentResponse | null>(null);
   const [kpis, setKpis] = useState<KpiResponse["kpis"] | null>(null);
-  const [locale, setLocale] = useState<"en" | "fr" | "pt" | "es">("en");
+  const [locale, setLocaleRaw] = useState<"en" | "fr" | "pt" | "es">(primaryLang);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -131,6 +131,16 @@ function AppInner() {
     }
     void syncLanguage();
   }, [langMode, primaryLang, secondaryLang]);
+
+  // Keep document locale in sync with UI language
+  useEffect(() => {
+    setLocaleRaw(primaryLang);
+  }, [primaryLang]);
+
+  function setLocale(lang: "en" | "fr" | "pt" | "es") {
+    setLocaleRaw(lang);
+    void handlePrimaryLangChange(lang);
+  }
 
   function handleLangModeChange(mode: LangMode) {
     setLangMode(mode);
