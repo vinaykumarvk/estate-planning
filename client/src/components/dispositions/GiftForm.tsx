@@ -70,7 +70,25 @@ export function GiftForm({ open, onClose, onSaved, scenarioId }: Props) {
         <FormSelect name="beneficiaryPersonId" labelKey="dispositions.beneficiary_person" value={String(form.values.beneficiaryPersonId ?? "")} options={people.map((p) => ({ value: p.id, label: p.legalName }))} onChange={(v) => form.handleChange("beneficiaryPersonId", v)} />
         <div className="form-row">
           <FormCurrencyInput name="amount" labelKey="dispositions.amount" value={Number(form.values.amount ?? 0)} currency={String(form.values.currency ?? "NGN")} onChange={(v) => form.handleChange("amount", v)} />
-          <FormField name="percentage" labelKey="dispositions.percentage" value={String(form.values.percentage ?? 0)} type="number" onChange={(v) => form.handleChange("percentage", Number(v))} />
+          <div className="form-field">
+            <label className="form-field__label" htmlFor="percentage-slider">{t("dispositions.percentage")}</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                id="percentage-slider"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Number(form.values.percentage ?? 0)}
+                onChange={(e) => form.handleChange("percentage", Number(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ minWidth: 40, textAlign: "right", fontWeight: 600 }}>{form.values.percentage ?? 0}%</span>
+            </div>
+            {Number(form.values.percentage ?? 0) > 0 && Number(form.values.percentage ?? 0) < 100 && (
+              <p className="form-field__hint">{t("dispositions.statutory_warning")}</p>
+            )}
+          </div>
         </div>
         <FormField name="conditions" labelKey="dispositions.conditions" value={String(form.values.conditions ?? "")} onChange={(v) => form.handleChange("conditions", v)} />
         <div className="form-row">

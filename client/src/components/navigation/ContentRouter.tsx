@@ -44,6 +44,11 @@ import { BalanceSheet } from "../balance/BalanceSheet";
 import { FaraidCalculator } from "../faraid/FaraidCalculator";
 import { GoalsDashboard } from "../goals/GoalsDashboard";
 import { EstatePlanningReview } from "../estate/EstatePlanningReview";
+import { TrustManager } from "../trusts/TrustManager";
+import { POAManager } from "../poa/POAManager";
+import { ProbateDashboard } from "../probate/ProbateDashboard";
+import { VaultManager } from "../vault/VaultManager";
+import { SecuritySettings } from "../vault/SecuritySettings";
 
 // ---------- shared response types (migrated from App.tsx) ----------
 interface IntakeData {
@@ -163,7 +168,7 @@ export function ContentRouter(props: ContentRouterProps) {
 }
 
 function isMatterScoped(section: NavSection): boolean {
-  return ["matters", "clients", "estate", "documents", "compliance"].includes(section);
+  return ["matters", "clients", "estate", "documents", "compliance", "probate", "vault"].includes(section);
 }
 
 // ---------- Section renderer ----------
@@ -203,6 +208,18 @@ function renderSection(section: NavSection, subPage: string, props: ContentRoute
       return <CollaborationSection subPage={subPage} />;
     case "administration":
       return <AdministrationSection subPage={subPage} props={props} />;
+    case "probate":
+      return (
+        <MatterGate matterId={props.matterId}>
+          <ProbateSection subPage={subPage} />
+        </MatterGate>
+      );
+    case "vault":
+      return (
+        <MatterGate matterId={props.matterId}>
+          <VaultSection subPage={subPage} />
+        </MatterGate>
+      );
     case "settings":
       return null; // Settings rendered directly in App.tsx
     default:
@@ -380,6 +397,8 @@ function EstateSection({ subPage, props }: { subPage: string; props: ContentRout
   if (subPage === "iht") return <IhtCalculator />;
   if (subPage === "faraid") return <FaraidCalculator />;
   if (subPage === "gifts") return <GiftRegister />;
+  if (subPage === "trusts") return <TrustManager />;
+  if (subPage === "poa") return <POAManager />;
   if (subPage === "scenarios") {
     return (
       <div className="content-grid">
@@ -806,6 +825,19 @@ function AdministrationSection({ subPage, props }: { subPage: string; props: Con
 
   // jurisdictions (default)
   return <JurisdictionAdmin />;
+}
+
+// ----- Probate -----
+function ProbateSection({ subPage }: { subPage: string }) {
+  // dashboard (default)
+  return <ProbateDashboard />;
+}
+
+// ----- Vault -----
+function VaultSection({ subPage }: { subPage: string }) {
+  if (subPage === "security") return <SecuritySettings />;
+  // documents (default)
+  return <VaultManager />;
 }
 
 // ==================== SHARED PRESENTATIONAL COMPONENTS ====================

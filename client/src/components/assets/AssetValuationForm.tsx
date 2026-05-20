@@ -22,6 +22,12 @@ const ASSET_CLASSES = [
   { value: "securities", labelKey: "options.asset_securities" },
   { value: "pension", labelKey: "options.asset_pension" },
   { value: "insurance", labelKey: "options.asset_insurance" },
+  { value: "mobile_money", labelKey: "options.asset_mobile_money" },
+  { value: "business", labelKey: "options.asset_business" },
+  { value: "cash", labelKey: "options.asset_cash" },
+  { value: "cryptocurrency", labelKey: "options.asset_cryptocurrency" },
+  { value: "digital_asset", labelKey: "options.asset_digital_asset" },
+  { value: "intellectual_property", labelKey: "options.asset_intellectual_property" },
   { value: "debt", labelKey: "options.asset_debt" },
   { value: "other", labelKey: "options.asset_other" },
 ];
@@ -101,6 +107,12 @@ export function AssetValuationForm({ open, onClose, onSaved }: Props) {
           <FormSelect name="ownershipType" labelKey="assets.ownership_type" value={form.values.ownershipType} options={OWNERSHIP_TYPES} onChange={(v) => form.handleChange("ownershipType", v)} />
           <FormField name="ownershipShare" labelKey="assets.ownership_share" value={String(form.values.ownershipShare)} type="number" onChange={(v) => form.handleChange("ownershipShare", Number(v))} />
         </div>
+        <FormField name="beneficiaryDesignation" labelKey="assets.beneficiary_designation" value={String((form.values as any).beneficiaryDesignation ?? "")} onChange={(v) => form.handleChange("beneficiaryDesignation" as any, v)} />
+        <div className="form-row">
+          <FormCheckbox name="todPod" labelKey="assets.tod_pod" checked={!!form.values.todPod} onChange={(v) => form.handleChange("todPod", v)} />
+          <FormCheckbox name="volatilityFlag" labelKey="assets.volatility_flag" checked={!!(form.values as any).volatilityFlag} onChange={(v) => form.handleChange("volatilityFlag" as any, v)} />
+        </div>
+        <FormField name="digitalAccessMethod" labelKey="assets.digital_access_method" value={String((form.values as any).digitalAccessMethod ?? "")} onChange={(v) => form.handleChange("digitalAccessMethod" as any, v)} />
         {mutation.error && <div className="form-error" role="alert">{mutation.error}</div>}
         <FormActions onCancel={onClose} loading={mutation.loading} />
       </form>

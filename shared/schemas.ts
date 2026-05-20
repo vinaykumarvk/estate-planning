@@ -35,7 +35,7 @@ export const createAssetSchema = z.object({
   tenantId: z.string().min(1),
   matterId: z.string().min(1),
   ownerPersonId: z.string().optional(),
-  assetClass: z.enum(["real_estate", "bank_account", "securities", "pension", "insurance", "debt", "other", "digital_asset", "cryptocurrency", "intellectual_property", "domain_name"]),
+  assetClass: z.enum(["real_estate", "bank_account", "securities", "pension", "insurance", "mobile_money", "business", "cash", "debt", "other", "digital_asset", "cryptocurrency", "intellectual_property", "domain_name"]),
   description: z.string().min(2),
   jurisdictionCode: jurisdictionCodeSchema.optional(),
   situsCountry: z.string().min(2),

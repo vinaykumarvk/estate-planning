@@ -160,11 +160,42 @@ function JurisdictionStep({ onSaved }: { onSaved: () => void }) {
   const [language, setLanguage] = useState(
     workspace?.matter.languageOfRecord ?? "en"
   );
+  const [additionalJurisdictions, setAdditionalJurisdictions] = useState<string[]>(
+    (workspace?.matter as any)?.additionalJurisdictions ?? []
+  );
+  const [crossBorder, setCrossBorder] = useState(
+    ((workspace?.matter as any)?.additionalJurisdictions ?? []).length > 0
+  );
+
+  const JURISDICTIONS = [
+    { value: "NG", labelKey: "options.jurisdiction_ng" },
+    { value: "GH", labelKey: "options.jurisdiction_gh" },
+    { value: "ZA", labelKey: "options.jurisdiction_za" },
+    { value: "KE", labelKey: "options.jurisdiction_ke" },
+    { value: "SN", labelKey: "options.jurisdiction_sn" },
+    { value: "CM", labelKey: "options.jurisdiction_cm" },
+    { value: "MZ", labelKey: "options.jurisdiction_mz" },
+    { value: "AO", labelKey: "options.jurisdiction_ao" },
+    { value: "EW", labelKey: "options.jurisdiction_ew" },
+    { value: "PT", labelKey: "options.jurisdiction_pt" },
+    { value: "ES", labelKey: "options.jurisdiction_es" },
+    { value: "FR", labelKey: "options.jurisdiction_fr" },
+  ];
+
+  function toggleAdditionalJurisdiction(code: string) {
+    setAdditionalJurisdictions((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  }
 
   async function handleSave() {
     const result = await mutation.mutate(
       `/api/matters/${matterId}`,
-      { primaryJurisdictionCode: jurisdiction, languageOfRecord: language },
+      {
+        primaryJurisdictionCode: jurisdiction,
+        languageOfRecord: language,
+        additionalJurisdictions: crossBorder ? additionalJurisdictions : [],
+      },
       "PATCH"
     );
     if (result) onSaved();
@@ -176,16 +207,7 @@ function JurisdictionStep({ onSaved }: { onSaved: () => void }) {
         name="primaryJurisdictionCode"
         labelKey="matters.jurisdiction"
         value={jurisdiction}
-        options={[
-          { value: "NG", labelKey: "options.jurisdiction_ng" },
-          { value: "GH", labelKey: "options.jurisdiction_gh" },
-          { value: "ZA", labelKey: "options.jurisdiction_za" },
-          { value: "KE", labelKey: "options.jurisdiction_ke" },
-          { value: "SN", labelKey: "options.jurisdiction_sn" },
-          { value: "CM", labelKey: "options.jurisdiction_cm" },
-          { value: "MZ", labelKey: "options.jurisdiction_mz" },
-          { value: "AO", labelKey: "options.jurisdiction_ao" },
-        ]}
+        options={JURISDICTIONS}
         required
         onChange={setJurisdiction}
       />
@@ -202,6 +224,29 @@ function JurisdictionStep({ onSaved }: { onSaved: () => void }) {
         required
         onChange={setLanguage}
       />
+      <FormCheckbox
+        name="crossBorder"
+        labelKey="intake.cross_border_flag"
+        checked={crossBorder}
+        onChange={setCrossBorder}
+      />
+      {crossBorder && (
+        <div className="form-stack">
+          <label className="form-field__label">{t("intake.additional_jurisdictions")}</label>
+          <div className="checkbox-group">
+            {JURISDICTIONS.filter((j) => j.value !== jurisdiction).map((j) => (
+              <label key={j.value} className="checkbox-group__item">
+                <input
+                  type="checkbox"
+                  checked={additionalJurisdictions.includes(j.value)}
+                  onChange={() => toggleAdditionalJurisdiction(j.value)}
+                />
+                <span>{t(j.labelKey)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       {mutation.error && <div className="form-error" role="alert">{mutation.error}</div>}
       <button type="button" onClick={handleSave} disabled={mutation.loading}>
         {mutation.loading ? t("common.saving") : t("common.save")}

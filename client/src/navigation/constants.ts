@@ -2,7 +2,9 @@ import {
   BarChart3,
   Briefcase,
   FileSignature,
+  Gavel,
   LayoutDashboard,
+  Lock,
   MessageSquare,
   PieChart,
   Settings,
@@ -28,6 +30,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { section: "estate", labelKey: "nav.estate_analysis", icon: PieChart, matterRequired: true },
       { section: "documents", labelKey: "nav.documents", icon: FileSignature, matterRequired: true },
+      { section: "probate", labelKey: "nav.probate", icon: Gavel, matterRequired: true },
+      { section: "vault", labelKey: "nav.vault", icon: Lock, matterRequired: true },
     ],
   },
   {
@@ -79,6 +83,8 @@ export const SUB_NAV: Record<NavSection, SubPageDef[]> = {
     { key: "iht", labelKey: "nav.sub.iht" },
     { key: "faraid", labelKey: "nav.sub.faraid" },
     { key: "gifts", labelKey: "nav.sub.gifts" },
+    { key: "trusts", labelKey: "nav.sub.trusts" },
+    { key: "poa", labelKey: "nav.sub.poa" },
     { key: "scenarios", labelKey: "nav.sub.scenarios" },
   ],
   documents: [
@@ -114,6 +120,13 @@ export const SUB_NAV: Record<NavSection, SubPageDef[]> = {
     { key: "schema", labelKey: "nav.sub.schema" },
     { key: "release-gates", labelKey: "nav.sub.release_gates" },
   ],
+  probate: [
+    { key: "dashboard", labelKey: "nav.sub.probate_dashboard" },
+  ],
+  vault: [
+    { key: "documents", labelKey: "nav.sub.vault_documents" },
+    { key: "security", labelKey: "nav.sub.security_settings" },
+  ],
   settings: [],
 };
 
@@ -127,5 +140,7 @@ export const DEFAULT_SUB_PAGE: Record<NavSection, string> = {
   reports: "operational",
   collaboration: "messaging",
   administration: "jurisdictions",
+  probate: "dashboard",
+  vault: "documents",
   settings: "",
 };

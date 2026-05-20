@@ -10,6 +10,8 @@ export type NavSection =
   | "reports"
   | "collaboration"
   | "administration"
+  | "probate"
+  | "vault"
   | "settings";
 
 export type SubPage = string;

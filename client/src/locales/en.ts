@@ -71,6 +71,13 @@ const en: Record<string, string> = {
   "nav.sub.packages": "Packages",
   "nav.sub.schema": "Schema",
   "nav.sub.release_gates": "Release Gates",
+  "nav.sub.trusts": "Trusts",
+  "nav.sub.poa": "Powers of Attorney",
+  "nav.sub.probate_dashboard": "Probate Dashboard",
+  "nav.sub.vault_documents": "Document Vault",
+  "nav.sub.security_settings": "Security Settings",
+  "nav.probate": "Probate",
+  "nav.vault": "Vault & Security",
 
   // Navigation — role labels
   "nav.role_viewer": "Viewer",
@@ -170,6 +177,8 @@ const en: Record<string, string> = {
   "intake.add_people_first": "Add people in the Client Profile step first.",
   "intake.no_relationships": "No relationships defined yet.",
   "intake.need_two_people": "Add at least two people before defining relationships.",
+  "intake.cross_border_flag": "This matter involves cross-border elements",
+  "intake.additional_jurisdictions": "Additional Jurisdictions",
 
   // Intake step labels
   "intake.step_jurisdiction": "Jurisdiction",
@@ -195,6 +204,8 @@ const en: Record<string, string> = {
   "people.tax_residency": "Tax Residency",
   "people.marital_status": "Marital Status",
   "people.language": "Preferred Language",
+  "people.religion": "Religion",
+  "people.legal_system_pref": "Legal System Preference",
   "people.domicile_pending": "domicile pending",
   "people.empty": "No people added yet.",
   "people.delete_title": "Delete Person",
@@ -238,6 +249,10 @@ const en: Record<string, string> = {
   "assets.taxonomy_field_label": "Label",
   "assets.taxonomy_field_type": "Type",
   "assets.taxonomy_add_field": "Add Field",
+  "assets.beneficiary_designation": "Beneficiary Designation",
+  "assets.tod_pod": "Transfer/Payable on Death",
+  "assets.volatility_flag": "High Volatility",
+  "assets.digital_access_method": "Digital Access Method",
 
   // Dispositions
   "dispositions.title": "Dispositions & Gifts",
@@ -252,6 +267,7 @@ const en: Record<string, string> = {
   "dispositions.per_stirpes": "Per Stirpes",
   "dispositions.per_capita": "Per Capita",
   "dispositions.lifetime_gift": "Lifetime Gift",
+  "dispositions.statutory_warning": "Note: Check statutory minimum entitlements for heirs in the applicable jurisdiction.",
   "dispositions.empty": "No dispositions added yet.",
   "dispositions.appoint_fiduciary": "Appoint Fiduciary",
   "dispositions.fiduciary_role": "Fiduciary Role",
@@ -391,6 +407,12 @@ const en: Record<string, string> = {
   "options.asset_securities": "Securities",
   "options.asset_pension": "Pension",
   "options.asset_insurance": "Insurance",
+  "options.asset_mobile_money": "Mobile Money",
+  "options.asset_business": "Business Interest",
+  "options.asset_cash": "Cash",
+  "options.asset_cryptocurrency": "Cryptocurrency",
+  "options.asset_digital_asset": "Digital Asset",
+  "options.asset_intellectual_property": "Intellectual Property",
   "options.asset_debt": "Debt",
   "options.asset_other": "Other",
 
@@ -473,12 +495,30 @@ const en: Record<string, string> = {
   "options.jurisdiction_ao": "Angola",
   "options.jurisdiction_ew": "England & Wales",
   "options.jurisdiction_pt": "Portugal",
+  "options.jurisdiction_es": "Spain",
+  "options.jurisdiction_fr": "France",
 
   // Option labels — Languages
   "options.lang_en": "English",
   "options.lang_fr": "French",
   "options.lang_pt": "Portuguese",
   "options.lang_es": "Spanish",
+
+  // Option labels — Religion
+  "options.religion_christianity": "Christianity",
+  "options.religion_islam": "Islam",
+  "options.religion_traditional": "Traditional/Customary",
+  "options.religion_hinduism": "Hinduism",
+  "options.religion_judaism": "Judaism",
+  "options.religion_none": "None / Secular",
+  "options.religion_other": "Other",
+
+  // Option labels — Legal systems
+  "options.legal_system_common_law": "Common Law",
+  "options.legal_system_civil_law": "Civil Law",
+  "options.legal_system_customary": "Customary Law",
+  "options.legal_system_islamic": "Islamic Law (Sharia)",
+  "options.legal_system_mixed": "Mixed System",
 
   // IHT Calculator
   "iht.title": "IHT Calculator",
